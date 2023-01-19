@@ -1,0 +1,47 @@
+
+#logo {
+  aspect-ratio: 1 / 1;
+    background-color: lightgreen;
+  border-radius: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+#logo:hover{
+    background-image: linear-gradient(to right, pink, magenta);
+}
+#title {
+  font-size: 90px;
+}
+#p{
+    text-align: center;
+    width: 60%;
+    font-family: cursive;
+    font-size: 80px;
+}
+img {
+  display: inline-block;
+  width: 75%;
+  border-radius: 50px;
+}
+template{
+    justify-content: center;
+    position: flex;
+}
+
+h1{
+    text-align: center;
+    align-content: center;
+    font-size: 80px;
+}
+#Logo{ 
+    background-color: lightgreen;
+    border-radius: 25px;
+    width: 400px;
+    align-content: center;
+    justify-content: center;
+    justify-items: center;
+    align-items: center;
+    text-align: center;
+}

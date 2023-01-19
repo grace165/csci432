@@ -4993,12 +4993,12 @@ const _export_sfc = (sfc, props) => {
 };
 const _sfc_main$1 = {};
 const _hoisted_1$1 = { id: "logo" };
-const _hoisted_2 = /* @__PURE__ */ createBaseVNode("div", { id: "title" }, "Vue", -1);
-const _hoisted_3 = /* @__PURE__ */ createBaseVNode("div", { id: "subtitle" }, "Components", -1);
-const _hoisted_4 = /* @__PURE__ */ createBaseVNode("img", {
+const _hoisted_2 = /* @__PURE__ */ createBaseVNode("div", { id: "title" }, "Gremlin", -1);
+const _hoisted_3 = /* @__PURE__ */ createBaseVNode("img", {
   alt: "Vue logo",
   src: _imports_0
 }, null, -1);
+const _hoisted_4 = /* @__PURE__ */ createBaseVNode("div", { id: "p" }, "Cats bring joy--life is meant to be lived with love and happiness. Cat is answer.", -1);
 const _hoisted_5 = [
   _hoisted_2,
   _hoisted_3,
@@ -5008,12 +5008,13 @@ function _sfc_render$1(_ctx, _cache) {
   return openBlock(), createElementBlock("div", _hoisted_1$1, _hoisted_5);
 }
 const Logo = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["render", _sfc_render$1]]);
+const App_vue_vue_type_style_index_0_lang = "";
 const _sfc_main = {
   components: {
     Logo
   }
 };
-const _hoisted_1 = /* @__PURE__ */ createBaseVNode("h1", null, "The Meaning of Life", -1);
+const _hoisted_1 = /* @__PURE__ */ createBaseVNode("h1", null, "~~The Meaning of Life~~", -1);
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   const _component_Logo = resolveComponent("Logo");
   return openBlock(), createElementBlock(Fragment, null, [
