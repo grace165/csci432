@@ -1,0 +1,82 @@
+
+form {
+  margin: 20px;
+  border-color: black;
+  border-width: 5px;
+}
+.header {
+  border-top-right-radius: 25px;
+  border-top-left-radius: 25px;
+  background-color: rgb(56, 199, 51);
+  margin: 20px;
+  color: white;
+  padding-bottom: 10px;
+}
+.button-container {
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 40px;
+}
+.button {
+  background-color: rgb(56, 199, 51);
+  color: white;
+  font-family: sans-serif;
+  
+  border-color: rgb(56, 199, 51);
+  border-radius: 5px;
+  width: 100px;
+  height: 40px;
+}
+.gray {
+  background-color: rgb(238, 238, 238);
+  padding: 5px;
+  border-radius: 2px;
+}
+p {
+  font-size: larger;
+  font-family: sans-serif;
+  margin-left: 50px;
+  margin-bottom: -5px;
+  padding: 20px;
+}
+.p1 {
+  font-size: medium;
+  font-family: sans-serif;
+  margin-left: 75px;
+}
+.tshirt-container {
+  display: inline-block;
+}
+.tshirt {
+  display: inline-block;
+  padding: -10px;
+  margin: 0px;
+}
+img {
+  width: 100px;
+  height: 100px;
+  margin: -10px;
+  padding: -10px;
+}
+label {
+  font-family: sans-serif;
+}
+input {
+  margin: 15px;
+  font-family: sans-serif;
+  border-color: lightgray;
+  border-radius: 5px;
+  border-style: solid;
+  height: 20px;
+}
+.col1 {
+  column-count: 1;
+  column-gap: 100px;
+  margin: 20px;
+}
+.col2 {
+  column-count: 2;
+  column-gap: 0px;
+  align-content: center;
+  margin: 20px;
+}
