@@ -5207,9 +5207,9 @@ function normalizeContainer(container) {
   }
   return container;
 }
-const _imports_0 = "/app2/t_shirt_green.jpg";
-const _imports_1 = "/app2/t_shirt_yellow.gif";
-const _imports_2 = "/app2/t_shirt_blue.png";
+const _imports_0 = "/app6/t_shirt_green.jpg";
+const _imports_1 = "/app6/t_shirt_yellow.gif";
+const _imports_2 = "/app6/t_shirt_blue.png";
 const App_vue_vue_type_style_index_0_lang = "";
 const _hoisted_1 = /* @__PURE__ */ createBaseVNode("div", { class: "header" }, [
   /* @__PURE__ */ createBaseVNode("h1", null, [
