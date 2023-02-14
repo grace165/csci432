@@ -5315,6 +5315,7 @@ const _sfc_main = {
             createBaseVNode("div", _hoisted_6, [
               createBaseVNode("div", _hoisted_7, [
                 withDirectives(createBaseVNode("input", {
+                  required: "",
                   type: "radio",
                   "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => user.radio = $event),
                   name: "radio",
@@ -5327,6 +5328,7 @@ const _sfc_main = {
               ]),
               createBaseVNode("div", _hoisted_9, [
                 withDirectives(createBaseVNode("input", {
+                  required: "",
                   type: "radio",
                   "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => user.radio = $event),
                   name: "radio",
@@ -5339,6 +5341,7 @@ const _sfc_main = {
               ]),
               createBaseVNode("div", _hoisted_11, [
                 withDirectives(createBaseVNode("input", {
+                  required: "",
                   type: "radio",
                   "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => user.radio = $event),
                   name: "radio",
@@ -5426,14 +5429,14 @@ const _sfc_main = {
                 [vModelText, user.zip]
               ])
             ])
+          ]),
+          createBaseVNode("div", { class: "button-container" }, [
+            createBaseVNode("button", {
+              type: "submit",
+              onClick: submit,
+              class: "button"
+            }, " Purchase ")
           ])
-        ]),
-        createBaseVNode("div", { class: "button-container" }, [
-          createBaseVNode("button", {
-            type: "button",
-            onClick: submit,
-            class: "button"
-          }, " Purchase ")
         ]),
         createBaseVNode("div", null, [
           _hoisted_25,
