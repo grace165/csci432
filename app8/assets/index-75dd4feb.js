@@ -5092,26 +5092,51 @@ function normalizeContainer(container) {
   }
   return container;
 }
+const App_vue_vue_type_style_index_0_lang = "";
 const _hoisted_1 = { class: "container" };
-const _hoisted_2 = { class: "rounded border border-primary border-2 border-opacity-25 py-3 px-5" };
+const _hoisted_2 = { class: "form" };
 const _hoisted_3 = { class: "d-flex flex-column" };
 const _hoisted_4 = /* @__PURE__ */ createBaseVNode("legend", null, "Create Account", -1);
-const _hoisted_5 = { class: "form-floating mb-2" };
+const _hoisted_5 = { class: "form-floating" };
 const _hoisted_6 = /* @__PURE__ */ createBaseVNode("label", {
   for: "username",
   class: "form-label"
-}, "Username", -1);
+}, null, -1);
 const _hoisted_7 = { class: "form-floating mb-2" };
 const _hoisted_8 = /* @__PURE__ */ createBaseVNode("label", {
   for: "password",
   class: "form-label"
-}, "Password", -1);
+}, null, -1);
 const _hoisted_9 = { class: "form-floating mb-2" };
 const _hoisted_10 = /* @__PURE__ */ createBaseVNode("label", {
   for: "password2",
   class: "form-label"
-}, "Reenter password", -1);
-const _hoisted_11 = ["disabled"];
+}, null, -1);
+const _hoisted_11 = { class: "form-floating mb-2" };
+const _hoisted_12 = /* @__PURE__ */ createBaseVNode("label", {
+  for: "email",
+  class: "form-label"
+}, null, -1);
+const _hoisted_13 = {
+  ref: "emailErrorRef",
+  class: "text-danger"
+};
+const _hoisted_14 = { class: "form-floating mb-2" };
+const _hoisted_15 = /* @__PURE__ */ createBaseVNode("label", {
+  for: "phonenumber",
+  class: "form-label"
+}, null, -1);
+const _hoisted_16 = /* @__PURE__ */ createBaseVNode("br", null, null, -1);
+const _hoisted_17 = {
+  class: "form-floating",
+  style: { "align-content": "center" }
+};
+const _hoisted_18 = /* @__PURE__ */ createBaseVNode("label", {
+  for: "profilepic",
+  class: "label"
+}, " Choose a Profile Pic", -1);
+const _hoisted_19 = /* @__PURE__ */ createBaseVNode("img", { id: "preview-img" }, null, -1);
+const _hoisted_20 = ["disabled"];
 const _sfc_main = {
   __name: "App",
   setup(__props) {
@@ -5119,13 +5144,25 @@ const _sfc_main = {
     const username = ref("");
     const password = ref("");
     const password2 = ref("");
+    const email = ref("");
+    const phonenumber = ref("");
+    const user = reactive({
+      profilepic: {}
+    });
     const disabled = ref(true);
     const validUsername = ref(false);
     const validPassword = ref(false);
+    const validEmail = ref(false);
+    const validPhonenumber = ref(false);
     const passwordsMatch = ref(false);
     const usernameErrorRef = ref(null);
     const passwordErrorRef = ref(null);
     const password2ErrorRef = ref(null);
+    const phonenumberErrorRef = ref(null);
+    const emailValidator = reactive("deep-email-validator");
+    async function isEmailValid(email2) {
+      return emailValidator.validate(email2);
+    }
     let count = 0;
     watch(usernameRef, () => {
       console.log("watching usernameRef");
@@ -5139,7 +5176,7 @@ const _sfc_main = {
       console.log(passwordErrorRef.value);
       if (passwordErrorRef.value != null && elm.value.length > 0) {
         validPassword.value = elm.value.length >= 8;
-        passwordErrorRef.value.innerHTML = validPassword.value ? "&nbsp;" : "Minimum length: 8 characters";
+        passwordErrorRef.value.innerHTML = validPassword.value ? "&nbsp;" : "Minimum length: 8 characters. Must include 1 uppercase, 1 lowercase, 1 punctuation";
       }
     }
     watch(username, () => {
@@ -5151,11 +5188,23 @@ const _sfc_main = {
       passwordsMatch.value = password.value === password2.value;
       password2ErrorRef.value.innerHTML = passwordsMatch.value || password2.value.length == 0 ? "&nbsp;" : "Passwords do not match";
     });
-    watch([validUsername, validPassword, passwordsMatch], async () => {
-      disabled.value = !(validUsername.value && validPassword.value && passwordsMatch.value);
+    watch(email, () => {
+      validEmail.value = isEmailValid(email);
+      emailErrorRef.value.innerHTML = (isEmailValid = false) ? "&nbsp;" : "Not a valid email";
+    });
+    watch(phonenumber, () => {
+      validPhonenumber.value = phonenumber.value.length == 12;
+      phonenumberErrorRef.value.innerHTML = validPhonenumber.value ? "&nbsp;" : "Not a valid phone number. Enter area code and dashes";
+    });
+    watch([validUsername, validPassword, passwordsMatch, validEmail, validPhonenumber], async () => {
+      disabled.value = !(validUsername.value && validPassword.value && passwordsMatch.value && validEmail.value && validPhonenumber.value);
       console.log(disabled.value);
-      if (!disabled.value)
+      if (!disabled.value) {
         usernameRef.value.value = "";
+        document.getElementById("button").style.borderColor = "blue";
+        document.getElementById("button").style.backgroundColor = "blue";
+        document.getElementById("button").style.color = "white";
+      }
     });
     function submit() {
       let mssg = username.value + ", " + password.value;
@@ -5166,6 +5215,15 @@ const _sfc_main = {
     });
     onUpdated(() => {
     });
+    function loadPreviewImg(event) {
+      user.profilepic = event.target.files[0];
+      let reader = new FileReader();
+      reader.onloadend = function() {
+        let img = document.querySelector("#preview-img");
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(user.profilepic);
+    }
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock("div", _hoisted_1, [
         createBaseVNode("form", _hoisted_2, [
@@ -5178,7 +5236,8 @@ const _sfc_main = {
                 "onUpdate:modelValue": _cache[0] || (_cache[0] = ($event) => username.value = $event),
                 id: "username",
                 type: "text",
-                class: "form-control"
+                class: "form-control",
+                placeholder: "Username"
               }, null, 512), [
                 [vModelText, username.value]
               ]),
@@ -5195,7 +5254,9 @@ const _sfc_main = {
                 "onUpdate:modelValue": _cache[1] || (_cache[1] = ($event) => password.value = $event),
                 id: "password",
                 type: "password",
-                class: "form-control"
+                class: "form-control",
+                placeholder: "Password",
+                pattern: "(?=.*\\d)(?=.*[a-z])(?=.*[A-Z]).{8,}"
               }, null, 512), [
                 [vModelText, password.value]
               ]),
@@ -5211,7 +5272,8 @@ const _sfc_main = {
                 "onUpdate:modelValue": _cache[2] || (_cache[2] = ($event) => password2.value = $event),
                 id: "password2",
                 type: "password",
-                class: "form-control"
+                class: "form-control",
+                placeholder: "Reenter Password"
               }, null, 512), [
                 [vModelText, password2.value]
               ]),
@@ -5222,13 +5284,57 @@ const _sfc_main = {
                 class: "text-danger"
               }, " ", 512)
             ]),
+            createBaseVNode("div", _hoisted_11, [
+              withDirectives(createBaseVNode("input", {
+                "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => email.value = $event),
+                id: "email",
+                type: "email",
+                class: "form-control",
+                placeholder: "Email Address"
+              }, null, 512), [
+                [vModelText, email.value]
+              ]),
+              _hoisted_12,
+              createBaseVNode("small", _hoisted_13, " ", 512)
+            ]),
+            createBaseVNode("div", _hoisted_14, [
+              withDirectives(createBaseVNode("input", {
+                "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => phonenumber.value = $event),
+                id: "phonenumber",
+                type: "tel",
+                pattern: "[0-9]{3}-[0-9]{3}-[0-9]{4}",
+                class: "form-control",
+                placeholder: "Phone Number"
+              }, null, 512), [
+                [vModelText, phonenumber.value]
+              ]),
+              _hoisted_15,
+              createBaseVNode("small", {
+                ref_key: "phonenumberErrorRef",
+                ref: phonenumberErrorRef,
+                class: "text-danger"
+              }, " ", 512)
+            ]),
+            _hoisted_16,
+            createBaseVNode("div", _hoisted_17, [
+              _hoisted_18,
+              createBaseVNode("input", {
+                id: "profilepic",
+                type: "file",
+                placeholder: "Upload a Profile Pic",
+                accept: "image/png, image/jpeg",
+                onChange: loadPreviewImg
+              }, null, 32),
+              _hoisted_19
+            ]),
             createBaseVNode("div", null, [
               createBaseVNode("button", {
                 onClick: submit,
-                class: "btn btn-primary",
+                class: "btn",
+                id: "button",
                 type: "button",
                 disabled: disabled.value
-              }, "Create", 8, _hoisted_11)
+              }, "Create", 8, _hoisted_20)
             ])
           ])
         ])
