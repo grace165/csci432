@@ -5070,7 +5070,7 @@ const _sfc_main$1 = {
     }
     watch(collection, () => {
       console.log("collection changed");
-      if (collection.media.length > 0) {
+      if (photoset.media.length > 0) {
         loadImage();
       }
     });
