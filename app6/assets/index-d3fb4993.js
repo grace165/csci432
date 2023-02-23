@@ -5235,7 +5235,7 @@ const _hoisted_12 = /* @__PURE__ */ createBaseVNode("label", null, [
   /* @__PURE__ */ createBaseVNode("img", { src: _imports_2 })
 ], -1);
 const _hoisted_13 = /* @__PURE__ */ createBaseVNode("label", { for: "sizeChoices" }, " Size ", -1);
-const _hoisted_14 = /* @__PURE__ */ createStaticVNode('<option value="XS"></option><option value="S"></option><option value="M"></option><option value="L"></option><option value="XL"></option>', 5);
+const _hoisted_14 = /* @__PURE__ */ createStaticVNode('<option value="XS">XS</option><option value="S">S</option><option value="M">M</option><option value="L">L</option><option value="XL">XL</option>', 5);
 const _hoisted_19 = [
   _hoisted_14
 ];
