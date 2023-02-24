@@ -1,5 +1,5 @@
 
-#preview-img{
+#preview-img {
   border-radius: 100px;
   border-width: 10px;
   display: block;
@@ -41,8 +41,8 @@
   font-size: small;
   display: block;
 }
-.label{
-  color:gray;
+.label {
+  color: gray;
   font-size: medium;
 }
 input:placeholder-shown {

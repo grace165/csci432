@@ -5159,10 +5159,6 @@ const _sfc_main = {
     const passwordErrorRef = ref(null);
     const password2ErrorRef = ref(null);
     const phonenumberErrorRef = ref(null);
-    const emailValidator = reactive("deep-email-validator");
-    async function isEmailValid(email2) {
-      return emailValidator.validate(email2);
-    }
     let count = 0;
     watch(usernameRef, () => {
       console.log("watching usernameRef");
@@ -5189,7 +5185,7 @@ const _sfc_main = {
       password2ErrorRef.value.innerHTML = passwordsMatch.value || password2.value.length == 0 ? "&nbsp;" : "Passwords do not match";
     });
     watch(email, () => {
-      validEmail.value = isEmailValid(email);
+      validEmail.value = email;
       emailErrorRef.value.innerHTML = (isEmailValid = false) ? "&nbsp;" : "Not a valid email";
     });
     watch(phonenumber, () => {
@@ -5256,7 +5252,7 @@ const _sfc_main = {
                 type: "password",
                 class: "form-control",
                 placeholder: "Password",
-                pattern: "(?=.*\\d)(?=.*[a-z])(?=.*[A-Z]).{8,}"
+                pattern: "var pattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$/"
               }, null, 512), [
                 [vModelText, password.value]
               ]),
@@ -5300,6 +5296,7 @@ const _sfc_main = {
             createBaseVNode("div", _hoisted_14, [
               withDirectives(createBaseVNode("input", {
                 "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => phonenumber.value = $event),
+                maxlength: "12",
                 id: "phonenumber",
                 type: "tel",
                 pattern: "[0-9]{3}-[0-9]{3}-[0-9]{4}",
