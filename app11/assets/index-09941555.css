@@ -1,0 +1,38 @@
+
+.box2{
+    color: maroon;
+    font-family: sans-serif;
+    border-radius: 25px;
+    border-color: darkred;
+    border-width: 3px;
+    border-style: solid;
+    display: block;
+    margin-right: auto;
+    margin-left: auto;
+    width: 600px;
+    height: 250px;
+    background-image: linear-gradient(to right, pink, lightpink, palevioletred);
+}
+
+.box{
+    border-radius: 10px;
+    border-color: darkred;
+    border-width: 3px;
+    border-style: solid;
+    display: block;
+    margin-right: auto;
+    margin-left: auto;
+    width: 700px;
+    height: 400px;
+    background-image: linear-gradient(to right, pink, lightpink, palevioletred);
+}
+
+
+h1{
+  text-align: center; 
+  font-family: sans-serif;
+  color: darkred;
+}
+html{
+  background-image: linear-gradient(to right, pink, lightpink, palevioletred);
+}
