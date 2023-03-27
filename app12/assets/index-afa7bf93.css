@@ -1,0 +1,111 @@
+
+.link{
+    position: absolute;
+    left: 0;
+}
+
+.items{
+    position: absolute;
+    right: 0;
+}
+
+html {
+  background-color: pink;
+}
+body{
+  position: relative;
+  margin: 5%;
+}
+h1 {
+  text-align: center;
+  align-items: center;
+  display: block;
+  margin-right: auto;
+  margin-left: auto;
+  color: darkmagenta;
+  font-family: sans-serif;
+  font-size: xx-large;
+}
+p {
+  text-align: center;
+  align-items: center;
+  display: block;
+  margin-right: auto;
+  margin-left: auto;
+  color: rgb(119, 10, 119);
+  font-family: sans-serif;
+  font-size: large;
+}
+nav {
+  font-size: large;
+  color: blue;
+}
+nav:hover {
+  color: magenta;
+}
+hr {
+  width: auto;
+  background-color: darkmagenta;
+  height: 2px;
+  border: none;
+}
+img {
+  height: 600px;
+  width: 600px;
+  border-radius: 10px;
+  border-color: white;
+  border-style: solid;
+  border-width: 10px;
+  margin-right: auto;
+  margin-left: auto;
+  display: block;
+  margin-bottom: 20px;
+}
+
+.names {
+    color: darkorchid;
+    font-family: sans-serif;
+    font-size: 20px;
+    margin: 10px;
+    margin-left: 30px;
+}
+.right-col {
+    float: left;
+    width: 50%;
+}
+.left-col {
+    float: left;
+    width: 50%;
+    font-size: 30px;
+}
+img {
+    width: 50%;
+    height: 50%;
+}
+
+.input {
+    position: absolute;
+    right: 0;
+    background-color: rgb(250, 216, 227);
+    border-color: darkmagenta;
+    border-radius: 5px;
+}
+
+.names {
+    color: darkorchid;
+    font-family: sans-serif;
+    font-size: 30px;
+    margin: 10px;
+    margin-left: 30px;
+}
+
+h1 {
+    text-align: center;
+    align-items: center;
+    display: block;
+    margin-right: auto;
+    margin-left: auto;
+    color: darkmagenta;
+    font-family: sans-serif;
+    font-size: xx-large;
+}
