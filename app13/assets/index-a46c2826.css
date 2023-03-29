@@ -1,0 +1,72 @@
+
+.edit{
+    background-color: darkblue;
+    position: absolute;
+    right: 0;
+    color: white;
+    border-radius: 10px;
+    width: 60px;
+    border-color: lightblue;
+}
+
+
+html{
+    background-color: lightblue;
+    margin: auto;
+    padding: auto;
+}
+
+
+h1{
+  color: black;
+  font-family: sans-serif;
+  font-size: xx-large;
+}
+h2{
+  font-size: 25px;
+  font-family: sans-serif;
+  color: black;
+  text-align: left;
+  align-items: center;
+  display: block;
+  margin-right: auto;
+  margin-left: auto;
+}
+p {
+  text-align: left;
+  align-items: center;
+  display: block;
+  padding-left: 20px;
+  margin-right: auto;
+  margin-left: auto;
+  color: darkblue;
+  font-family: sans-serif;
+  font-size: large;
+}
+.box{
+  border-style:dashed;
+  border-radius: 20px;
+  border-width: 20px;
+  border-color:crimson;
+}
+.box:hover{
+  border-color: red;
+}
+body{
+  position: relative;
+  margin: 5%;
+}
+hr{
+  height: 2px;
+  background-color: blue;
+}
+
+input {
+    border-radius: 5px;
+}
+.submit {
+    border-radius: 5px;
+    background-color: darkblue;
+    color: white;
+    border-color: lightblue;
+}
