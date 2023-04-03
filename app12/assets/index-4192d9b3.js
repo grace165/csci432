@@ -7018,7 +7018,7 @@ const _hoisted_5$1 = ["src"];
 const _sfc_main$3 = {
   __name: "HomeView",
   setup(__props) {
-    const imgSrc = ref("../grem.jpg");
+    const imgSrc = ref("../../grem.jpg");
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock(Fragment, null, [
         createBaseVNode("nav", null, [
