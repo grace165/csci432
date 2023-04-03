@@ -7101,7 +7101,7 @@ const _sfc_main$2 = {
         console.log("item exists");
         searched.name = jsonObject.cats.name;
         searched.image = jsonObject.cats.image;
-        router2.replace("/items/:id");
+        router2.push("/items/:id");
         console.log("input:", input);
       } else {
         console.log("not valid address");
