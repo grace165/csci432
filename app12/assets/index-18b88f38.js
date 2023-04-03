@@ -7167,7 +7167,7 @@ const _sfc_main$1 = {
               createBaseVNode("div", _hoisted_5, toDisplayString(value.name) + " ", 1),
               createBaseVNode("div", _hoisted_6, [
                 createBaseVNode("img", {
-                  src: "../../../" + value.image
+                  src: "../../" + value.image
                 }, null, 8, _hoisted_7)
               ])
             ], 16);
