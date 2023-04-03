@@ -2221,6 +2221,37 @@ const onRenderTracked = createHook(
 function onErrorCaptured(hook, target = currentInstance) {
   injectHook("ec", hook, target);
 }
+function withDirectives(vnode, directives) {
+  const internalInstance = currentRenderingInstance;
+  if (internalInstance === null) {
+    return vnode;
+  }
+  const instance = getExposeProxy(internalInstance) || internalInstance.proxy;
+  const bindings = vnode.dirs || (vnode.dirs = []);
+  for (let i = 0; i < directives.length; i++) {
+    let [dir, value, arg, modifiers = EMPTY_OBJ] = directives[i];
+    if (dir) {
+      if (isFunction(dir)) {
+        dir = {
+          mounted: dir,
+          updated: dir
+        };
+      }
+      if (dir.deep) {
+        traverse(value);
+      }
+      bindings.push({
+        dir,
+        instance,
+        value,
+        oldValue: void 0,
+        arg,
+        modifiers
+      });
+    }
+  }
+  return vnode;
+}
 function invokeDirectiveHook(vnode, prevVNode, instance, name) {
   const bindings = vnode.dirs;
   const oldBindings = prevVNode && prevVNode.dirs;
@@ -5042,6 +5073,72 @@ const DOMTransitionPropsValidators = {
   leaveToClass: String
 };
 /* @__PURE__ */ extend({}, BaseTransition.props, DOMTransitionPropsValidators);
+const getModelAssigner = (vnode) => {
+  const fn = vnode.props["onUpdate:modelValue"] || false;
+  return isArray$1(fn) ? (value) => invokeArrayFns(fn, value) : fn;
+};
+function onCompositionStart(e) {
+  e.target.composing = true;
+}
+function onCompositionEnd(e) {
+  const target = e.target;
+  if (target.composing) {
+    target.composing = false;
+    target.dispatchEvent(new Event("input"));
+  }
+}
+const vModelText = {
+  created(el, { modifiers: { lazy, trim, number } }, vnode) {
+    el._assign = getModelAssigner(vnode);
+    const castToNumber = number || vnode.props && vnode.props.type === "number";
+    addEventListener(el, lazy ? "change" : "input", (e) => {
+      if (e.target.composing)
+        return;
+      let domValue = el.value;
+      if (trim) {
+        domValue = domValue.trim();
+      }
+      if (castToNumber) {
+        domValue = looseToNumber(domValue);
+      }
+      el._assign(domValue);
+    });
+    if (trim) {
+      addEventListener(el, "change", () => {
+        el.value = el.value.trim();
+      });
+    }
+    if (!lazy) {
+      addEventListener(el, "compositionstart", onCompositionStart);
+      addEventListener(el, "compositionend", onCompositionEnd);
+      addEventListener(el, "change", onCompositionEnd);
+    }
+  },
+  // set value on mounted so it's after min/max for type="range"
+  mounted(el, { value }) {
+    el.value = value == null ? "" : value;
+  },
+  beforeUpdate(el, { value, modifiers: { lazy, trim, number } }, vnode) {
+    el._assign = getModelAssigner(vnode);
+    if (el.composing)
+      return;
+    if (document.activeElement === el && el.type !== "range") {
+      if (lazy) {
+        return;
+      }
+      if (trim && el.value.trim() === value) {
+        return;
+      }
+      if ((number || el.type === "number") && looseToNumber(el.value) === value) {
+        return;
+      }
+    }
+    const newValue = value == null ? "" : value;
+    if (el.value !== newValue) {
+      el.value = newValue;
+    }
+  }
+};
 const rendererOptions = /* @__PURE__ */ extend({ patchProp }, nodeOps);
 let renderer;
 function ensureRenderer() {
@@ -6864,7 +6961,7 @@ function useRouter() {
 function useRoute() {
   return inject(routeLocationKey);
 }
-const _sfc_main$7 = {
+const _sfc_main$6 = {
   __name: "App",
   setup(__props) {
     return (_ctx, _cache) => {
@@ -6875,7 +6972,7 @@ const _sfc_main$7 = {
   }
 };
 const HomeNavBar_vue_vue_type_style_index_0_lang = "";
-const _sfc_main$6 = {
+const _sfc_main$5 = {
   __name: "HomeNavBar",
   setup(__props) {
     return (_ctx, _cache) => {
@@ -6894,7 +6991,7 @@ const _sfc_main$6 = {
   }
 };
 const ItemsNavBar_vue_vue_type_style_index_0_lang = "";
-const _sfc_main$5 = {
+const _sfc_main$4 = {
   __name: "ItemsNavBar",
   setup(__props) {
     return (_ctx, _cache) => {
@@ -6913,29 +7010,29 @@ const _sfc_main$5 = {
   }
 };
 const HomeView_vue_vue_type_style_index_0_lang = "";
-const _hoisted_1$3 = /* @__PURE__ */ createBaseVNode("br", null, null, -1);
-const _hoisted_2$2 = /* @__PURE__ */ createBaseVNode("hr", null, null, -1);
-const _hoisted_3$2 = /* @__PURE__ */ createBaseVNode("h1", null, " Cats for ME-ow! ", -1);
-const _hoisted_4$2 = /* @__PURE__ */ createBaseVNode("p", null, " Pictures of my cat...for MY viewing pleasure!", -1);
-const _hoisted_5$2 = ["src"];
-const _sfc_main$4 = {
+const _hoisted_1$1 = /* @__PURE__ */ createBaseVNode("br", null, null, -1);
+const _hoisted_2$1 = /* @__PURE__ */ createBaseVNode("hr", null, null, -1);
+const _hoisted_3$1 = /* @__PURE__ */ createBaseVNode("h1", null, " Cats for ME-ow! ", -1);
+const _hoisted_4$1 = /* @__PURE__ */ createBaseVNode("p", null, " Pictures of my cat...for MY viewing pleasure!", -1);
+const _hoisted_5$1 = ["src"];
+const _sfc_main$3 = {
   __name: "HomeView",
   setup(__props) {
-    const imgSrc = ref("./src/assets/images/grem.jpg");
+    const imgSrc = ref("../grem.jpg");
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock(Fragment, null, [
         createBaseVNode("nav", null, [
-          createVNode(_sfc_main$6),
-          createVNode(_sfc_main$5)
+          createVNode(_sfc_main$5),
+          createVNode(_sfc_main$4)
         ]),
-        _hoisted_1$3,
-        _hoisted_2$2,
+        _hoisted_1$1,
+        _hoisted_2$1,
         createBaseVNode("main", null, [
           createVNode(unref(RouterView))
         ]),
-        _hoisted_3$2,
-        _hoisted_4$2,
-        createBaseVNode("img", { src: imgSrc.value }, null, 8, _hoisted_5$2)
+        _hoisted_3$1,
+        _hoisted_4$1,
+        createBaseVNode("img", { src: imgSrc.value }, null, 8, _hoisted_5$1)
       ], 64);
     };
   }
@@ -6986,63 +7083,42 @@ const jsonObject = {
   cats
 };
 const ItemsView2_vue_vue_type_style_index_0_lang = "";
-const _hoisted_1$2 = /* @__PURE__ */ createBaseVNode("br", null, null, -1);
-const _hoisted_2$1 = /* @__PURE__ */ createBaseVNode("hr", null, null, -1);
-const _hoisted_3$1 = /* @__PURE__ */ createBaseVNode("h1", null, " Gremlin is MY GORGEOUS Cat ", -1);
-const _hoisted_4$1 = { class: "left-col" };
-const _hoisted_5$1 = { class: "right-col" };
-const _hoisted_6$1 = ["src"];
-const _sfc_main$3 = {
-  __name: "ItemsView2",
-  setup(__props) {
-    const catFiles = reactive(jsonObject.cats);
-    const router2 = useRouter();
-    console.log(router2.getRoutes());
-    return (_ctx, _cache) => {
-      return openBlock(), createElementBlock(Fragment, null, [
-        createBaseVNode("nav", null, [
-          createVNode(_sfc_main$6),
-          createVNode(_sfc_main$2)
-        ]),
-        _hoisted_1$2,
-        _hoisted_2$1,
-        _hoisted_3$1,
-        (openBlock(true), createElementBlock(Fragment, null, renderList(catFiles, (value) => {
-          return openBlock(), createElementBlock("div", mergeProps({ class: "names" }, value), [
-            createBaseVNode("div", _hoisted_4$1, toDisplayString(value.name), 1),
-            createBaseVNode("div", _hoisted_5$1, [
-              createBaseVNode("img", {
-                src: "../../../" + value.image
-              }, null, 8, _hoisted_6$1)
-            ])
-          ], 16);
-        }), 256))
-      ], 64);
-    };
-  }
-};
 const SearchBar_vue_vue_type_style_index_0_lang = "";
-const _hoisted_1$1 = /* @__PURE__ */ createBaseVNode("input", {
-  class: "input",
-  type: "text",
-  placeholder: "Search"
-}, null, -1);
 const _sfc_main$2 = {
   __name: "SearchBar",
   setup(__props) {
-    reactive(jsonObject.cats);
-    jsonObject.cats.name;
+    const catName = ref(jsonObject.cats.name);
+    const input = ref("");
     const router2 = useRouter();
-    const route = useRoute();
+    const searched = reactive({
+      name: "",
+      image: ""
+    });
     function search() {
-      let id = route.params.id;
-      let catName2 = id ? `${id.charAt(0).toUpperCase()}${id.slice(1)}` : "";
-      id ? `${route.name} ${catName2}` : route.name;
+      console.log("input:", input);
+      console.log("catName:", catName);
+      if (input == catName) {
+        console.log("item exists");
+        searched.name = jsonObject.cats.name;
+        searched.image = jsonObject.cats.image;
+        router2.replace("/items/:id");
+        console.log("input:", input);
+      } else {
+        console.log("not valid address");
+        router2.push("/invalid");
+      }
       router2.replace("/items/:id");
     }
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock("nav", null, [
-        _hoisted_1$1,
+        withDirectives(createBaseVNode("input", {
+          "onUpdate:modelValue": _cache[0] || (_cache[0] = ($event) => input.value = $event),
+          class: "input",
+          type: "text",
+          placeholder: "Search"
+        }, null, 512), [
+          [vModelText, input.value]
+        ]),
         createBaseVNode("button", {
           onClick: search,
           class: "input",
@@ -7079,7 +7155,7 @@ const _sfc_main$1 = {
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock(Fragment, null, [
         createBaseVNode("nav", null, [
-          createVNode(_sfc_main$6),
+          createVNode(_sfc_main$5),
           createVNode(_sfc_main$2)
         ]),
         _hoisted_1,
@@ -7127,7 +7203,7 @@ const router = createRouter({
     {
       path: "/",
       name: "home",
-      component: _sfc_main$4
+      component: _sfc_main$3
     },
     {
       path: "/items",
@@ -7137,23 +7213,16 @@ const router = createRouter({
     {
       path: "/items/:id",
       name: "itemsid",
-      component: _sfc_main$1,
-      children: [
-        {
-          path: "/gremlin",
-          name: "gremlin",
-          component: _sfc_main$3
-        }
-      ]
+      component: _sfc_main$1
     },
     {
-      path: "/:pathMatch(.*)*",
+      path: "/invalid",
       name: "invalid",
       component: NotFoundView
     }
   ]
 });
 const main = "";
-const app = createApp(_sfc_main$7);
+const app = createApp(_sfc_main$6);
 app.use(router);
 app.mount("#app");
