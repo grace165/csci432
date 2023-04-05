@@ -99,8 +99,11 @@ main {
 .translate-leave-active {
   transition: all 0.5s ease;
 }
-.translate-enter-from,
-.translate-leave-to {
+.translate-enter-from{
   opacity: 0;
   transform: translateX(30px);
+}
+.translate-leave-to{
+  opacity: 0;
+  transform: translateX(-30px);
 }

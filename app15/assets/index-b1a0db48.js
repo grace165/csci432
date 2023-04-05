@@ -5396,7 +5396,7 @@ const _hoisted_5$3 = /* @__PURE__ */ createBaseVNode("p", null, "April 6, 2023",
 const _sfc_main$3 = {
   __name: "Movie1",
   setup(__props) {
-    const imgSrc = ref("../grem_shine_1.jpg");
+    const imgSrc = ref("grem_shine_1.jpg");
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock("div", _hoisted_1$3, [
         _hoisted_2$3,
@@ -5416,7 +5416,7 @@ const _hoisted_5$2 = /* @__PURE__ */ createBaseVNode("p", null, "April 14, 2023"
 const _sfc_main$2 = {
   __name: "Movie2",
   setup(__props) {
-    const imgSrc = ref("../grem_4.jpg");
+    const imgSrc = ref("grem_4.jpg");
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock("div", _hoisted_1$2, [
         _hoisted_2$2,
@@ -5436,7 +5436,7 @@ const _hoisted_5$1 = /* @__PURE__ */ createBaseVNode("p", null, "April 29, 2023"
 const _sfc_main$1 = {
   __name: "Movie3",
   setup(__props) {
-    const imgSrc = ref("../grem_8.jpg");
+    const imgSrc = ref("grem_8.jpg");
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock("div", _hoisted_1$1, [
         _hoisted_2$1,
