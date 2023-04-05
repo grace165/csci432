@@ -5411,7 +5411,7 @@ const Movie2_vue_vue_type_style_index_0_lang = "";
 const _hoisted_1$2 = { class: "movies" };
 const _hoisted_2$2 = /* @__PURE__ */ createBaseVNode("br", null, null, -1);
 const _hoisted_3$2 = ["src"];
-const _hoisted_4$2 = /* @__PURE__ */ createBaseVNode("h2", null, "Gremmagedon", -1);
+const _hoisted_4$2 = /* @__PURE__ */ createBaseVNode("h2", null, "Gremmageddon", -1);
 const _hoisted_5$2 = /* @__PURE__ */ createBaseVNode("p", null, "April 14, 2023", -1);
 const _sfc_main$2 = {
   __name: "Movie2",
