@@ -104,28 +104,6 @@ const isSpecialBooleanAttr = /* @__PURE__ */ makeMap(specialBooleanAttrs);
 function includeBooleanAttr(value) {
   return !!value || value === "";
 }
-const toDisplayString = (val) => {
-  return isString(val) ? val : val == null ? "" : isArray$1(val) || isObject(val) && (val.toString === objectToString || !isFunction(val.toString)) ? JSON.stringify(val, replacer, 2) : String(val);
-};
-const replacer = (_key, val) => {
-  if (val && val.__v_isRef) {
-    return replacer(_key, val.value);
-  } else if (isMap(val)) {
-    return {
-      [`Map(${val.size})`]: [...val.entries()].reduce((entries, [key, val2]) => {
-        entries[`${key} =>`] = val2;
-        return entries;
-      }, {})
-    };
-  } else if (isSet(val)) {
-    return {
-      [`Set(${val.size})`]: [...val.values()]
-    };
-  } else if (isObject(val) && !isArray$1(val) && !isPlainObject(val)) {
-    return String(val);
-  }
-  return val;
-};
 const EMPTY_OBJ = {};
 const EMPTY_ARR = [];
 const NOOP = () => {
@@ -194,6 +172,10 @@ const def = (obj, key, value) => {
 };
 const looseToNumber = (val) => {
   const n = parseFloat(val);
+  return isNaN(n) ? val : n;
+};
+const toNumber = (val) => {
+  const n = isString(val) ? Number(val) : NaN;
   return isNaN(n) ? val : n;
 };
 let _globalThis;
@@ -1257,7 +1239,7 @@ function queuePostFlushCb(cb) {
   }
   queueFlush();
 }
-function flushPreFlushCbs(seen2, i = isFlushing ? flushIndex + 1 : 0) {
+function flushPreFlushCbs(seen, i = isFlushing ? flushIndex + 1 : 0) {
   for (; i < queue.length; i++) {
     const cb = queue[i];
     if (cb && cb.pre) {
@@ -1267,7 +1249,7 @@ function flushPreFlushCbs(seen2, i = isFlushing ? flushIndex + 1 : 0) {
     }
   }
 }
-function flushPostFlushCbs(seen2) {
+function flushPostFlushCbs(seen) {
   if (pendingPostFlushCbs.length) {
     const deduped = [...new Set(pendingPostFlushCbs)];
     pendingPostFlushCbs.length = 0;
@@ -1295,7 +1277,7 @@ const comparator = (a, b) => {
   }
   return diff;
 };
-function flushJobs(seen2) {
+function flushJobs(seen) {
   isFlushPending = false;
   isFlushing = true;
   queue.sort(comparator);
@@ -1812,34 +1794,310 @@ function createPathGetter(ctx, path) {
     return cur;
   };
 }
-function traverse(value, seen2) {
+function traverse(value, seen) {
   if (!isObject(value) || value[
     "__v_skip"
     /* ReactiveFlags.SKIP */
   ]) {
     return value;
   }
-  seen2 = seen2 || /* @__PURE__ */ new Set();
-  if (seen2.has(value)) {
+  seen = seen || /* @__PURE__ */ new Set();
+  if (seen.has(value)) {
     return value;
   }
-  seen2.add(value);
+  seen.add(value);
   if (isRef(value)) {
-    traverse(value.value, seen2);
+    traverse(value.value, seen);
   } else if (isArray$1(value)) {
     for (let i = 0; i < value.length; i++) {
-      traverse(value[i], seen2);
+      traverse(value[i], seen);
     }
   } else if (isSet(value) || isMap(value)) {
     value.forEach((v) => {
-      traverse(v, seen2);
+      traverse(v, seen);
     });
   } else if (isPlainObject(value)) {
     for (const key in value) {
-      traverse(value[key], seen2);
+      traverse(value[key], seen);
     }
   }
   return value;
+}
+function useTransitionState() {
+  const state = {
+    isMounted: false,
+    isLeaving: false,
+    isUnmounting: false,
+    leavingVNodes: /* @__PURE__ */ new Map()
+  };
+  onMounted(() => {
+    state.isMounted = true;
+  });
+  onBeforeUnmount(() => {
+    state.isUnmounting = true;
+  });
+  return state;
+}
+const TransitionHookValidator = [Function, Array];
+const BaseTransitionImpl = {
+  name: `BaseTransition`,
+  props: {
+    mode: String,
+    appear: Boolean,
+    persisted: Boolean,
+    // enter
+    onBeforeEnter: TransitionHookValidator,
+    onEnter: TransitionHookValidator,
+    onAfterEnter: TransitionHookValidator,
+    onEnterCancelled: TransitionHookValidator,
+    // leave
+    onBeforeLeave: TransitionHookValidator,
+    onLeave: TransitionHookValidator,
+    onAfterLeave: TransitionHookValidator,
+    onLeaveCancelled: TransitionHookValidator,
+    // appear
+    onBeforeAppear: TransitionHookValidator,
+    onAppear: TransitionHookValidator,
+    onAfterAppear: TransitionHookValidator,
+    onAppearCancelled: TransitionHookValidator
+  },
+  setup(props, { slots }) {
+    const instance = getCurrentInstance();
+    const state = useTransitionState();
+    let prevTransitionKey;
+    return () => {
+      const children = slots.default && getTransitionRawChildren(slots.default(), true);
+      if (!children || !children.length) {
+        return;
+      }
+      let child = children[0];
+      if (children.length > 1) {
+        for (const c of children) {
+          if (c.type !== Comment) {
+            child = c;
+            break;
+          }
+        }
+      }
+      const rawProps = toRaw(props);
+      const { mode } = rawProps;
+      if (state.isLeaving) {
+        return emptyPlaceholder(child);
+      }
+      const innerChild = getKeepAliveChild(child);
+      if (!innerChild) {
+        return emptyPlaceholder(child);
+      }
+      const enterHooks = resolveTransitionHooks(innerChild, rawProps, state, instance);
+      setTransitionHooks(innerChild, enterHooks);
+      const oldChild = instance.subTree;
+      const oldInnerChild = oldChild && getKeepAliveChild(oldChild);
+      let transitionKeyChanged = false;
+      const { getTransitionKey } = innerChild.type;
+      if (getTransitionKey) {
+        const key = getTransitionKey();
+        if (prevTransitionKey === void 0) {
+          prevTransitionKey = key;
+        } else if (key !== prevTransitionKey) {
+          prevTransitionKey = key;
+          transitionKeyChanged = true;
+        }
+      }
+      if (oldInnerChild && oldInnerChild.type !== Comment && (!isSameVNodeType(innerChild, oldInnerChild) || transitionKeyChanged)) {
+        const leavingHooks = resolveTransitionHooks(oldInnerChild, rawProps, state, instance);
+        setTransitionHooks(oldInnerChild, leavingHooks);
+        if (mode === "out-in") {
+          state.isLeaving = true;
+          leavingHooks.afterLeave = () => {
+            state.isLeaving = false;
+            if (instance.update.active !== false) {
+              instance.update();
+            }
+          };
+          return emptyPlaceholder(child);
+        } else if (mode === "in-out" && innerChild.type !== Comment) {
+          leavingHooks.delayLeave = (el, earlyRemove, delayedLeave) => {
+            const leavingVNodesCache = getLeavingNodesForType(state, oldInnerChild);
+            leavingVNodesCache[String(oldInnerChild.key)] = oldInnerChild;
+            el._leaveCb = () => {
+              earlyRemove();
+              el._leaveCb = void 0;
+              delete enterHooks.delayedLeave;
+            };
+            enterHooks.delayedLeave = delayedLeave;
+          };
+        }
+      }
+      return child;
+    };
+  }
+};
+const BaseTransition = BaseTransitionImpl;
+function getLeavingNodesForType(state, vnode) {
+  const { leavingVNodes } = state;
+  let leavingVNodesCache = leavingVNodes.get(vnode.type);
+  if (!leavingVNodesCache) {
+    leavingVNodesCache = /* @__PURE__ */ Object.create(null);
+    leavingVNodes.set(vnode.type, leavingVNodesCache);
+  }
+  return leavingVNodesCache;
+}
+function resolveTransitionHooks(vnode, props, state, instance) {
+  const { appear, mode, persisted = false, onBeforeEnter, onEnter, onAfterEnter, onEnterCancelled, onBeforeLeave, onLeave, onAfterLeave, onLeaveCancelled, onBeforeAppear, onAppear, onAfterAppear, onAppearCancelled } = props;
+  const key = String(vnode.key);
+  const leavingVNodesCache = getLeavingNodesForType(state, vnode);
+  const callHook2 = (hook, args) => {
+    hook && callWithAsyncErrorHandling(hook, instance, 9, args);
+  };
+  const callAsyncHook = (hook, args) => {
+    const done = args[1];
+    callHook2(hook, args);
+    if (isArray$1(hook)) {
+      if (hook.every((hook2) => hook2.length <= 1))
+        done();
+    } else if (hook.length <= 1) {
+      done();
+    }
+  };
+  const hooks = {
+    mode,
+    persisted,
+    beforeEnter(el) {
+      let hook = onBeforeEnter;
+      if (!state.isMounted) {
+        if (appear) {
+          hook = onBeforeAppear || onBeforeEnter;
+        } else {
+          return;
+        }
+      }
+      if (el._leaveCb) {
+        el._leaveCb(
+          true
+          /* cancelled */
+        );
+      }
+      const leavingVNode = leavingVNodesCache[key];
+      if (leavingVNode && isSameVNodeType(vnode, leavingVNode) && leavingVNode.el._leaveCb) {
+        leavingVNode.el._leaveCb();
+      }
+      callHook2(hook, [el]);
+    },
+    enter(el) {
+      let hook = onEnter;
+      let afterHook = onAfterEnter;
+      let cancelHook = onEnterCancelled;
+      if (!state.isMounted) {
+        if (appear) {
+          hook = onAppear || onEnter;
+          afterHook = onAfterAppear || onAfterEnter;
+          cancelHook = onAppearCancelled || onEnterCancelled;
+        } else {
+          return;
+        }
+      }
+      let called = false;
+      const done = el._enterCb = (cancelled) => {
+        if (called)
+          return;
+        called = true;
+        if (cancelled) {
+          callHook2(cancelHook, [el]);
+        } else {
+          callHook2(afterHook, [el]);
+        }
+        if (hooks.delayedLeave) {
+          hooks.delayedLeave();
+        }
+        el._enterCb = void 0;
+      };
+      if (hook) {
+        callAsyncHook(hook, [el, done]);
+      } else {
+        done();
+      }
+    },
+    leave(el, remove2) {
+      const key2 = String(vnode.key);
+      if (el._enterCb) {
+        el._enterCb(
+          true
+          /* cancelled */
+        );
+      }
+      if (state.isUnmounting) {
+        return remove2();
+      }
+      callHook2(onBeforeLeave, [el]);
+      let called = false;
+      const done = el._leaveCb = (cancelled) => {
+        if (called)
+          return;
+        called = true;
+        remove2();
+        if (cancelled) {
+          callHook2(onLeaveCancelled, [el]);
+        } else {
+          callHook2(onAfterLeave, [el]);
+        }
+        el._leaveCb = void 0;
+        if (leavingVNodesCache[key2] === vnode) {
+          delete leavingVNodesCache[key2];
+        }
+      };
+      leavingVNodesCache[key2] = vnode;
+      if (onLeave) {
+        callAsyncHook(onLeave, [el, done]);
+      } else {
+        done();
+      }
+    },
+    clone(vnode2) {
+      return resolveTransitionHooks(vnode2, props, state, instance);
+    }
+  };
+  return hooks;
+}
+function emptyPlaceholder(vnode) {
+  if (isKeepAlive(vnode)) {
+    vnode = cloneVNode(vnode);
+    vnode.children = null;
+    return vnode;
+  }
+}
+function getKeepAliveChild(vnode) {
+  return isKeepAlive(vnode) ? vnode.children ? vnode.children[0] : void 0 : vnode;
+}
+function setTransitionHooks(vnode, hooks) {
+  if (vnode.shapeFlag & 6 && vnode.component) {
+    setTransitionHooks(vnode.component.subTree, hooks);
+  } else if (vnode.shapeFlag & 128) {
+    vnode.ssContent.transition = hooks.clone(vnode.ssContent);
+    vnode.ssFallback.transition = hooks.clone(vnode.ssFallback);
+  } else {
+    vnode.transition = hooks;
+  }
+}
+function getTransitionRawChildren(children, keepComment = false, parentKey) {
+  let ret = [];
+  let keyedFragmentCount = 0;
+  for (let i = 0; i < children.length; i++) {
+    let child = children[i];
+    const key = parentKey == null ? child.key : String(parentKey) + String(child.key != null ? child.key : i);
+    if (child.type === Fragment) {
+      if (child.patchFlag & 128)
+        keyedFragmentCount++;
+      ret = ret.concat(getTransitionRawChildren(child.children, keepComment, key));
+    } else if (keepComment || child.type !== Comment) {
+      ret.push(key != null ? cloneVNode(child, { key }) : child);
+    }
+  }
+  if (keyedFragmentCount > 1) {
+    for (let i = 0; i < ret.length; i++) {
+      ret[i].patchFlag = -2;
+    }
+  }
+  return ret;
 }
 function defineComponent(options) {
   return isFunction(options) ? { setup: options, name: options.name } : options;
@@ -1972,48 +2230,39 @@ function invokeDirectiveHook(vnode, prevVNode, instance, name) {
     }
   }
 }
-const NULL_DYNAMIC_COMPONENT = Symbol();
-function renderSlot(slots, name, props = {}, fallback, noSlotted) {
-  if (currentRenderingInstance.isCE || currentRenderingInstance.parent && isAsyncWrapper(currentRenderingInstance.parent) && currentRenderingInstance.parent.isCE) {
-    if (name !== "default")
-      props.name = name;
-    return createVNode("slot", props, fallback && fallback());
-  }
-  let slot = slots[name];
-  if (slot && slot._c) {
-    slot._d = false;
-  }
-  openBlock();
-  const validSlotContent = slot && ensureValidVNode(slot(props));
-  const rendered = createBlock(
-    Fragment,
-    {
-      key: props.key || // slot content array of a dynamic conditional slot may have a branch
-      // key attached in the `createSlots` helper, respect that
-      validSlotContent && validSlotContent.key || `_${name}`
-    },
-    validSlotContent || (fallback ? fallback() : []),
-    validSlotContent && slots._ === 1 ? 64 : -2
-    /* PatchFlags.BAIL */
-  );
-  if (!noSlotted && rendered.scopeId) {
-    rendered.slotScopeIds = [rendered.scopeId + "-s"];
-  }
-  if (slot && slot._c) {
-    slot._d = true;
-  }
-  return rendered;
+const COMPONENTS = "components";
+function resolveComponent(name, maybeSelfReference) {
+  return resolveAsset(COMPONENTS, name, true, maybeSelfReference) || name;
 }
-function ensureValidVNode(vnodes) {
-  return vnodes.some((child) => {
-    if (!isVNode(child))
-      return true;
-    if (child.type === Comment)
-      return false;
-    if (child.type === Fragment && !ensureValidVNode(child.children))
-      return false;
-    return true;
-  }) ? vnodes : null;
+const NULL_DYNAMIC_COMPONENT = Symbol();
+function resolveAsset(type, name, warnMissing = true, maybeSelfReference = false) {
+  const instance = currentRenderingInstance || currentInstance;
+  if (instance) {
+    const Component = instance.type;
+    if (type === COMPONENTS) {
+      const selfName = getComponentName(
+        Component,
+        false
+        /* do not include inferred name to avoid breaking existing code */
+      );
+      if (selfName && (selfName === name || selfName === camelize(name) || selfName === capitalize(camelize(name)))) {
+        return Component;
+      }
+    }
+    const res = (
+      // local registration
+      // check instance[type] first which is resolved for options API
+      resolve(instance[type] || Component[type], name) || // global registration
+      resolve(instance.appContext[type], name)
+    );
+    if (!res && maybeSelfReference) {
+      return Component;
+    }
+    return res;
+  }
+}
+function resolve(registry, name) {
+  return registry && (registry[name] || registry[camelize(name)] || registry[capitalize(camelize(name))]);
 }
 const getPublicInstance = (i) => {
   if (!i)
@@ -2145,7 +2394,7 @@ function applyOptions(instance) {
   const ctx = instance.ctx;
   shouldCacheAccess = false;
   if (options.beforeCreate) {
-    callHook(
+    callHook$1(
       options.beforeCreate,
       instance,
       "bc"
@@ -2237,7 +2486,7 @@ function applyOptions(instance) {
     });
   }
   if (created) {
-    callHook(
+    callHook$1(
       created,
       instance,
       "c"
@@ -2324,7 +2573,7 @@ function resolveInjections(injectOptions, ctx, checkDuplicateProperties = NOOP, 
     }
   }
 }
-function callHook(hook, instance, type) {
+function callHook$1(hook, instance, type) {
   callWithAsyncErrorHandling(isArray$1(hook) ? hook.map((h2) => h2.bind(instance.proxy)) : hook.bind(instance.proxy), instance, type);
 }
 function createWatcher(raw, ctx, publicThis, key) {
@@ -4106,6 +4355,9 @@ function cloneVNode(vnode, extraProps, mergeRef = false) {
 function createTextVNode(text = " ", flag = 0) {
   return createVNode(Text, null, text, flag);
 }
+function createCommentVNode(text = "", asBlock = false) {
+  return asBlock ? (openBlock(), createBlock(Comment, null, text)) : createVNode(Comment, null, text);
+}
 function normalizeVNode(child) {
   if (child == null || typeof child === "boolean") {
     return createVNode(Comment);
@@ -4286,6 +4538,7 @@ function createComponentInstance(vnode, parent, suspense) {
   return instance;
 }
 let currentInstance = null;
+const getCurrentInstance = () => currentInstance || currentRenderingInstance;
 const setCurrentInstance = (instance) => {
   currentInstance = instance;
   instance.scope.on();
@@ -4421,6 +4674,9 @@ function getExposeProxy(instance) {
       }
     }));
   }
+}
+function getComponentName(Component, includeInferred = true) {
+  return isFunction(Component) ? Component.displayName || Component.name : Component.name || includeInferred && Component.__name;
 }
 function isClassComponent(value) {
   return isFunction(value) && "__vccOpts" in value;
@@ -4773,6 +5029,240 @@ function shouldSetAsProp(el, key, value, isSVG) {
   }
   return key in el;
 }
+const TRANSITION = "transition";
+const ANIMATION = "animation";
+const Transition = (props, { slots }) => h(BaseTransition, resolveTransitionProps(props), slots);
+Transition.displayName = "Transition";
+const DOMTransitionPropsValidators = {
+  name: String,
+  type: String,
+  css: {
+    type: Boolean,
+    default: true
+  },
+  duration: [String, Number, Object],
+  enterFromClass: String,
+  enterActiveClass: String,
+  enterToClass: String,
+  appearFromClass: String,
+  appearActiveClass: String,
+  appearToClass: String,
+  leaveFromClass: String,
+  leaveActiveClass: String,
+  leaveToClass: String
+};
+Transition.props = /* @__PURE__ */ extend({}, BaseTransition.props, DOMTransitionPropsValidators);
+const callHook = (hook, args = []) => {
+  if (isArray$1(hook)) {
+    hook.forEach((h2) => h2(...args));
+  } else if (hook) {
+    hook(...args);
+  }
+};
+const hasExplicitCallback = (hook) => {
+  return hook ? isArray$1(hook) ? hook.some((h2) => h2.length > 1) : hook.length > 1 : false;
+};
+function resolveTransitionProps(rawProps) {
+  const baseProps = {};
+  for (const key in rawProps) {
+    if (!(key in DOMTransitionPropsValidators)) {
+      baseProps[key] = rawProps[key];
+    }
+  }
+  if (rawProps.css === false) {
+    return baseProps;
+  }
+  const { name = "v", type, duration, enterFromClass = `${name}-enter-from`, enterActiveClass = `${name}-enter-active`, enterToClass = `${name}-enter-to`, appearFromClass = enterFromClass, appearActiveClass = enterActiveClass, appearToClass = enterToClass, leaveFromClass = `${name}-leave-from`, leaveActiveClass = `${name}-leave-active`, leaveToClass = `${name}-leave-to` } = rawProps;
+  const durations = normalizeDuration(duration);
+  const enterDuration = durations && durations[0];
+  const leaveDuration = durations && durations[1];
+  const { onBeforeEnter, onEnter, onEnterCancelled, onLeave, onLeaveCancelled, onBeforeAppear = onBeforeEnter, onAppear = onEnter, onAppearCancelled = onEnterCancelled } = baseProps;
+  const finishEnter = (el, isAppear, done) => {
+    removeTransitionClass(el, isAppear ? appearToClass : enterToClass);
+    removeTransitionClass(el, isAppear ? appearActiveClass : enterActiveClass);
+    done && done();
+  };
+  const finishLeave = (el, done) => {
+    el._isLeaving = false;
+    removeTransitionClass(el, leaveFromClass);
+    removeTransitionClass(el, leaveToClass);
+    removeTransitionClass(el, leaveActiveClass);
+    done && done();
+  };
+  const makeEnterHook = (isAppear) => {
+    return (el, done) => {
+      const hook = isAppear ? onAppear : onEnter;
+      const resolve2 = () => finishEnter(el, isAppear, done);
+      callHook(hook, [el, resolve2]);
+      nextFrame(() => {
+        removeTransitionClass(el, isAppear ? appearFromClass : enterFromClass);
+        addTransitionClass(el, isAppear ? appearToClass : enterToClass);
+        if (!hasExplicitCallback(hook)) {
+          whenTransitionEnds(el, type, enterDuration, resolve2);
+        }
+      });
+    };
+  };
+  return extend(baseProps, {
+    onBeforeEnter(el) {
+      callHook(onBeforeEnter, [el]);
+      addTransitionClass(el, enterFromClass);
+      addTransitionClass(el, enterActiveClass);
+    },
+    onBeforeAppear(el) {
+      callHook(onBeforeAppear, [el]);
+      addTransitionClass(el, appearFromClass);
+      addTransitionClass(el, appearActiveClass);
+    },
+    onEnter: makeEnterHook(false),
+    onAppear: makeEnterHook(true),
+    onLeave(el, done) {
+      el._isLeaving = true;
+      const resolve2 = () => finishLeave(el, done);
+      addTransitionClass(el, leaveFromClass);
+      forceReflow();
+      addTransitionClass(el, leaveActiveClass);
+      nextFrame(() => {
+        if (!el._isLeaving) {
+          return;
+        }
+        removeTransitionClass(el, leaveFromClass);
+        addTransitionClass(el, leaveToClass);
+        if (!hasExplicitCallback(onLeave)) {
+          whenTransitionEnds(el, type, leaveDuration, resolve2);
+        }
+      });
+      callHook(onLeave, [el, resolve2]);
+    },
+    onEnterCancelled(el) {
+      finishEnter(el, false);
+      callHook(onEnterCancelled, [el]);
+    },
+    onAppearCancelled(el) {
+      finishEnter(el, true);
+      callHook(onAppearCancelled, [el]);
+    },
+    onLeaveCancelled(el) {
+      finishLeave(el);
+      callHook(onLeaveCancelled, [el]);
+    }
+  });
+}
+function normalizeDuration(duration) {
+  if (duration == null) {
+    return null;
+  } else if (isObject(duration)) {
+    return [NumberOf(duration.enter), NumberOf(duration.leave)];
+  } else {
+    const n = NumberOf(duration);
+    return [n, n];
+  }
+}
+function NumberOf(val) {
+  const res = toNumber(val);
+  return res;
+}
+function addTransitionClass(el, cls) {
+  cls.split(/\s+/).forEach((c) => c && el.classList.add(c));
+  (el._vtc || (el._vtc = /* @__PURE__ */ new Set())).add(cls);
+}
+function removeTransitionClass(el, cls) {
+  cls.split(/\s+/).forEach((c) => c && el.classList.remove(c));
+  const { _vtc } = el;
+  if (_vtc) {
+    _vtc.delete(cls);
+    if (!_vtc.size) {
+      el._vtc = void 0;
+    }
+  }
+}
+function nextFrame(cb) {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(cb);
+  });
+}
+let endId = 0;
+function whenTransitionEnds(el, expectedType, explicitTimeout, resolve2) {
+  const id = el._endId = ++endId;
+  const resolveIfNotStale = () => {
+    if (id === el._endId) {
+      resolve2();
+    }
+  };
+  if (explicitTimeout) {
+    return setTimeout(resolveIfNotStale, explicitTimeout);
+  }
+  const { type, timeout, propCount } = getTransitionInfo(el, expectedType);
+  if (!type) {
+    return resolve2();
+  }
+  const endEvent = type + "end";
+  let ended = 0;
+  const end = () => {
+    el.removeEventListener(endEvent, onEnd);
+    resolveIfNotStale();
+  };
+  const onEnd = (e) => {
+    if (e.target === el && ++ended >= propCount) {
+      end();
+    }
+  };
+  setTimeout(() => {
+    if (ended < propCount) {
+      end();
+    }
+  }, timeout + 1);
+  el.addEventListener(endEvent, onEnd);
+}
+function getTransitionInfo(el, expectedType) {
+  const styles = window.getComputedStyle(el);
+  const getStyleProperties = (key) => (styles[key] || "").split(", ");
+  const transitionDelays = getStyleProperties(`${TRANSITION}Delay`);
+  const transitionDurations = getStyleProperties(`${TRANSITION}Duration`);
+  const transitionTimeout = getTimeout(transitionDelays, transitionDurations);
+  const animationDelays = getStyleProperties(`${ANIMATION}Delay`);
+  const animationDurations = getStyleProperties(`${ANIMATION}Duration`);
+  const animationTimeout = getTimeout(animationDelays, animationDurations);
+  let type = null;
+  let timeout = 0;
+  let propCount = 0;
+  if (expectedType === TRANSITION) {
+    if (transitionTimeout > 0) {
+      type = TRANSITION;
+      timeout = transitionTimeout;
+      propCount = transitionDurations.length;
+    }
+  } else if (expectedType === ANIMATION) {
+    if (animationTimeout > 0) {
+      type = ANIMATION;
+      timeout = animationTimeout;
+      propCount = animationDurations.length;
+    }
+  } else {
+    timeout = Math.max(transitionTimeout, animationTimeout);
+    type = timeout > 0 ? transitionTimeout > animationTimeout ? TRANSITION : ANIMATION : null;
+    propCount = type ? type === TRANSITION ? transitionDurations.length : animationDurations.length : 0;
+  }
+  const hasTransform = type === TRANSITION && /\b(transform|all)(,|$)/.test(getStyleProperties(`${TRANSITION}Property`).toString());
+  return {
+    type,
+    timeout,
+    propCount,
+    hasTransform
+  };
+}
+function getTimeout(delays, durations) {
+  while (delays.length < durations.length) {
+    delays = delays.concat(delays);
+  }
+  return Math.max(...durations.map((d, i) => toMs(d) + toMs(delays[i])));
+}
+function toMs(s) {
+  return Number(s.slice(0, -1).replace(",", ".")) * 1e3;
+}
+function forceReflow() {
+  return document.body.offsetHeight;
+}
 const rendererOptions = /* @__PURE__ */ extend({ patchProp }, nodeOps);
 let renderer;
 function ensureRenderer() {
@@ -4806,7 +5296,6 @@ function normalizeContainer(container) {
   }
   return container;
 }
-const _imports_0 = "/app16/assets/logo-277e0e97.svg";
 /*!
   * vue-router v4.1.6
   * (c) 2022 Eduardo San Martin Morote
@@ -5595,7 +6084,7 @@ function createRouterMatcher(routes, globalOptions) {
     if (matcher.record.name && !isAliasRecord(matcher))
       matcherMap.set(matcher.record.name, matcher);
   }
-  function resolve(location2, currentLocation) {
+  function resolve2(location2, currentLocation) {
     let matcher;
     let params = {};
     let path;
@@ -5653,7 +6142,7 @@ function createRouterMatcher(routes, globalOptions) {
     };
   }
   routes.forEach((route) => addRoute(route));
-  return { addRoute, resolve, removeRoute, getRoutes, getRecordMatcher };
+  return { addRoute, resolve: resolve2, removeRoute, getRoutes, getRecordMatcher };
 }
 function paramsFromLocation(params, keys) {
   const newParams = {};
@@ -5833,7 +6322,7 @@ function useCallbacks() {
 function guardToPromiseFn(guard, to, from, record, name) {
   const enterCallbackArray = record && // name is defined if record is because of the function overload
   (record.enterCallbacks[name] = record.enterCallbacks[name] || []);
-  return () => new Promise((resolve, reject) => {
+  return () => new Promise((resolve2, reject) => {
     const next = (valid) => {
       if (valid === false) {
         reject(createRouterError(4, {
@@ -5852,7 +6341,7 @@ function guardToPromiseFn(guard, to, from, record, name) {
         record.enterCallbacks[name] === enterCallbackArray && typeof valid === "function") {
           enterCallbackArray.push(valid);
         }
-        resolve();
+        resolve2();
       }
     };
     const guardReturn = guard.call(record && record.instances[name], to, from, next);
@@ -6140,7 +6629,7 @@ function createRouter(options) {
   function hasRoute(name) {
     return !!matcher.getRecordMatcher(name);
   }
-  function resolve(rawLocation, currentLocation) {
+  function resolve2(rawLocation, currentLocation) {
     currentLocation = assign({}, currentLocation || currentRoute.value);
     if (typeof rawLocation === "string") {
       const locationNormalized = parseURL(parseQuery$1, rawLocation, currentLocation.path);
@@ -6234,7 +6723,7 @@ function createRouter(options) {
     }
   }
   function pushWithRedirect(to, redirectedFrom) {
-    const targetLocation = pendingLocation = resolve(to);
+    const targetLocation = pendingLocation = resolve2(to);
     const from = currentRoute.value;
     const data = to.state;
     const force = to.force;
@@ -6395,7 +6884,7 @@ function createRouter(options) {
     removeHistoryListener = routerHistory.listen((to, _from, info) => {
       if (!router2.listening)
         return;
-      const toLocation = resolve(to);
+      const toLocation = resolve2(to);
       const shouldRedirect = handleRedirectRecord(toLocation);
       if (shouldRedirect) {
         pushWithRedirect(assign(shouldRedirect, { replace: true }), toLocation).catch(noop);
@@ -6482,15 +6971,15 @@ function createRouter(options) {
   function isReady() {
     if (ready && currentRoute.value !== START_LOCATION_NORMALIZED)
       return Promise.resolve();
-    return new Promise((resolve2, reject) => {
-      readyHandlers.add([resolve2, reject]);
+    return new Promise((resolve3, reject) => {
+      readyHandlers.add([resolve3, reject]);
     });
   }
   function markAsReady(err) {
     if (!ready) {
       ready = !err;
       setupListeners();
-      readyHandlers.list().forEach(([resolve2, reject]) => err ? reject(err) : resolve2());
+      readyHandlers.list().forEach(([resolve3, reject]) => err ? reject(err) : resolve3());
       readyHandlers.reset();
     }
     return err;
@@ -6512,7 +7001,7 @@ function createRouter(options) {
     removeRoute,
     hasRoute,
     getRoutes,
-    resolve,
+    resolve: resolve2,
     options,
     push,
     replace,
@@ -6590,7 +7079,10 @@ function extractChangingRecords(to, from) {
   }
   return [leavingRecords, updatingRecords, enteringRecords];
 }
-const HelloWorld_vue_vue_type_style_index_0_scoped_3ba3ab19_lang = "";
+function useRouter() {
+  return inject(routerKey);
+}
+const VipNav_vue_vue_type_style_index_0_scoped_8bc27e08_lang = "";
 const _export_sfc = (sfc, props) => {
   const target = sfc.__vccOpts || sfc;
   for (const [key, val] of props) {
@@ -6598,449 +7090,528 @@ const _export_sfc = (sfc, props) => {
   }
   return target;
 };
-const _withScopeId$1 = (n) => (pushScopeId("data-v-3ba3ab19"), n = n(), popScopeId(), n);
-const _hoisted_1$8 = { class: "greetings" };
-const _hoisted_2$8 = { class: "green" };
-const _hoisted_3$6 = /* @__PURE__ */ _withScopeId$1(() => /* @__PURE__ */ createBaseVNode("h3", null, [
-  /* @__PURE__ */ createTextVNode(" You’ve successfully created a project with "),
-  /* @__PURE__ */ createBaseVNode("a", {
-    href: "https://vitejs.dev/",
-    target: "_blank",
-    rel: "noopener"
-  }, "Vite"),
-  /* @__PURE__ */ createTextVNode(" + "),
-  /* @__PURE__ */ createBaseVNode("a", {
-    href: "https://vuejs.org/",
-    target: "_blank",
-    rel: "noopener"
-  }, "Vue 3"),
-  /* @__PURE__ */ createTextVNode(". ")
-], -1));
-const _sfc_main$9 = {
-  __name: "HelloWorld",
-  props: {
-    msg: {
-      type: String,
-      required: true
-    }
-  },
+const _sfc_main$a = {
+  __name: "VipNav",
   setup(__props) {
+    const router2 = useRouter();
+    function vip() {
+      console.log("enter vip view");
+      router2.replace("/vip");
+    }
+    function home() {
+      console.log("enter home view");
+      router2.replace("/");
+    }
     return (_ctx, _cache) => {
-      return openBlock(), createElementBlock("div", _hoisted_1$8, [
-        createBaseVNode("h1", _hoisted_2$8, toDisplayString(__props.msg), 1),
-        _hoisted_3$6
+      return openBlock(), createElementBlock("div", null, [
+        createBaseVNode("button", {
+          onClick: vip,
+          class: "vip",
+          type: "button"
+        }, "VIP LOUNGE"),
+        createBaseVNode("button", {
+          onClick: home,
+          class: "vip",
+          type: "button",
+          style: { "position": "absolute", "right": "0" }
+        }, "Return to Party")
       ]);
     };
   }
 };
-const HelloWorld = /* @__PURE__ */ _export_sfc(_sfc_main$9, [["__scopeId", "data-v-3ba3ab19"]]);
-const App_vue_vue_type_style_index_0_scoped_fc484609_lang = "";
-const _withScopeId = (n) => (pushScopeId("data-v-fc484609"), n = n(), popScopeId(), n);
-const _hoisted_1$7 = /* @__PURE__ */ _withScopeId(() => /* @__PURE__ */ createBaseVNode("img", {
-  alt: "Vue logo",
-  class: "logo",
-  src: _imports_0,
-  width: "125",
-  height: "125"
+const VipNav = /* @__PURE__ */ _export_sfc(_sfc_main$a, [["__scopeId", "data-v-8bc27e08"]]);
+const HomeNav_vue_vue_type_style_index_0_scoped_2e3ac13b_lang = "";
+const App_vue_vue_type_style_index_0_scoped_7e62525b_lang = "";
+const _withScopeId$2 = (n) => (pushScopeId("data-v-7e62525b"), n = n(), popScopeId(), n);
+const _hoisted_1$3 = /* @__PURE__ */ _withScopeId$2(() => /* @__PURE__ */ createBaseVNode("meta", {
+  name: "viewport",
+  content: "width=device-width, initial-scale=1.0"
 }, null, -1));
-const _hoisted_2$7 = { class: "wrapper" };
-const _sfc_main$8 = {
+const _hoisted_2$3 = /* @__PURE__ */ _withScopeId$2(() => /* @__PURE__ */ createBaseVNode("h1", null, "DANCE PARTY", -1));
+const _hoisted_3$2 = {
+  key: 0,
+  class: "disco"
+};
+const _hoisted_4$1 = /* @__PURE__ */ _withScopeId$2(() => /* @__PURE__ */ createBaseVNode("br", null, null, -1));
+const _hoisted_5$1 = ["src"];
+const _hoisted_6$1 = { class: "flex" };
+const _hoisted_7$1 = /* @__PURE__ */ _withScopeId$2(() => /* @__PURE__ */ createBaseVNode("br", null, null, -1));
+const _hoisted_8$1 = {
+  key: 0,
+  class: "cats"
+};
+const _hoisted_9$1 = ["src"];
+const _hoisted_10$1 = ["src"];
+const _hoisted_11 = ["src"];
+const _hoisted_12 = ["src"];
+const _hoisted_13 = ["src"];
+const _hoisted_14 = ["src"];
+const _hoisted_15 = ["src"];
+const _hoisted_16 = ["src"];
+const _hoisted_17 = { class: "vip" };
+const _sfc_main$9 = {
   __name: "App",
   setup(__props) {
+    const imgSrc = ref("cat_dance_1.gif");
+    const imgSrc1 = ref("cat_dance_2.gif");
+    const imgSrc2 = ref("cat_dance_3.gif");
+    const imgSrc3 = ref("vip_rope.png");
+    const imgSrc5 = ref("disco.gif");
+    const show = ref(false);
+    const show2 = ref(false);
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock(Fragment, null, [
-        createBaseVNode("header", null, [
-          _hoisted_1$7,
-          createBaseVNode("div", _hoisted_2$7, [
-            createVNode(HelloWorld, { msg: "You did it!" }),
-            createBaseVNode("nav", null, [
-              createVNode(unref(RouterLink), { to: "/" }, {
-                default: withCtx(() => [
-                  createTextVNode("Home")
-                ]),
-                _: 1
-              }),
-              createVNode(unref(RouterLink), { to: "/about" }, {
-                default: withCtx(() => [
-                  createTextVNode("About")
-                ]),
-                _: 1
-              })
-            ])
-          ])
+        _hoisted_1$3,
+        _hoisted_2$3,
+        createVNode(Transition, { name: "translate" }, {
+          default: withCtx(() => [
+            show2.value ? (openBlock(), createElementBlock("div", _hoisted_3$2, [
+              _hoisted_4$1,
+              createBaseVNode("img", {
+                src: imgSrc5.value,
+                style: { "height": "200px", "width": "auto" }
+              }, null, 8, _hoisted_5$1)
+            ])) : createCommentVNode("", true)
+          ]),
+          _: 1
+        }),
+        createBaseVNode("div", _hoisted_6$1, [
+          createBaseVNode("button", {
+            class: "button2",
+            onClick: _cache[0] || (_cache[0] = ($event) => show.value = !show.value)
+          }, "Invite Cats"),
+          createBaseVNode("button", {
+            class: "button2",
+            onClick: _cache[1] || (_cache[1] = ($event) => show2.value = !show2.value)
+          }, "Let's Party")
         ]),
-        createVNode(unref(RouterView))
+        createBaseVNode("main", null, [
+          createVNode(unref(RouterView), {
+            name: "component1",
+            class: "c1"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component2",
+            class: "c2"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component3",
+            class: "c3"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component4",
+            class: "c4"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component5",
+            class: "c5"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c6"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component1",
+            class: "c7"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component2",
+            class: "c8"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component3",
+            class: "c9"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component4",
+            class: "c10"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component5",
+            class: "c11"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c12"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c13"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c14"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c15"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c16"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c17"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c18"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c19"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c20"
+          }),
+          createVNode(unref(RouterView))
+        ]),
+        _hoisted_7$1,
+        createVNode(Transition, {
+          name: "cats-in",
+          mode: "fade-in"
+        }, {
+          default: withCtx(() => [
+            show.value ? (openBlock(), createElementBlock("div", _hoisted_8$1, [
+              createBaseVNode("img", {
+                src: imgSrc.value,
+                style: { "height": "150px", "width": "150px" }
+              }, null, 8, _hoisted_9$1),
+              createBaseVNode("img", {
+                src: imgSrc1.value,
+                style: { "height": "150px", "width": "150px" }
+              }, null, 8, _hoisted_10$1),
+              createBaseVNode("img", {
+                src: imgSrc2.value,
+                style: { "height": "150px", "width": "150px" }
+              }, null, 8, _hoisted_11),
+              createBaseVNode("img", {
+                src: imgSrc.value,
+                style: { "height": "150px", "width": "150px" }
+              }, null, 8, _hoisted_12),
+              createBaseVNode("img", {
+                src: imgSrc1.value,
+                style: { "height": "150px", "width": "150px" }
+              }, null, 8, _hoisted_13),
+              createBaseVNode("img", {
+                src: imgSrc2.value,
+                style: { "height": "150px", "width": "150px" }
+              }, null, 8, _hoisted_14),
+              createBaseVNode("img", {
+                src: imgSrc.value,
+                style: { "height": "150px", "width": "150px" }
+              }, null, 8, _hoisted_15)
+            ])) : createCommentVNode("", true)
+          ]),
+          _: 1
+        }),
+        createBaseVNode("img", {
+          src: imgSrc3.value,
+          style: { "height": "150px", "width": "200px" }
+        }, null, 8, _hoisted_16),
+        createBaseVNode("div", _hoisted_17, [
+          createVNode(VipNav)
+        ])
       ], 64);
     };
   }
 };
-const App = /* @__PURE__ */ _export_sfc(_sfc_main$8, [["__scopeId", "data-v-fc484609"]]);
-const scriptRel = "modulepreload";
-const assetsURL = function(dep) {
-  return "/app16/" + dep;
-};
-const seen = {};
-const __vitePreload = function preload(baseModule, deps, importerUrl) {
-  if (!deps || deps.length === 0) {
-    return baseModule();
-  }
-  const links = document.getElementsByTagName("link");
-  return Promise.all(deps.map((dep) => {
-    dep = assetsURL(dep);
-    if (dep in seen)
-      return;
-    seen[dep] = true;
-    const isCss = dep.endsWith(".css");
-    const cssSelector = isCss ? '[rel="stylesheet"]' : "";
-    const isBaseRelative = !!importerUrl;
-    if (isBaseRelative) {
-      for (let i = links.length - 1; i >= 0; i--) {
-        const link2 = links[i];
-        if (link2.href === dep && (!isCss || link2.rel === "stylesheet")) {
-          return;
-        }
-      }
-    } else if (document.querySelector(`link[href="${dep}"]${cssSelector}`)) {
-      return;
-    }
-    const link = document.createElement("link");
-    link.rel = isCss ? "stylesheet" : scriptRel;
-    if (!isCss) {
-      link.as = "script";
-      link.crossOrigin = "";
-    }
-    link.href = dep;
-    document.head.appendChild(link);
-    if (isCss) {
-      return new Promise((res, rej) => {
-        link.addEventListener("load", res);
-        link.addEventListener("error", () => rej(new Error(`Unable to preload CSS for ${dep}`)));
-      });
-    }
-  })).then(() => baseModule());
-};
-const WelcomeItem_vue_vue_type_style_index_0_scoped_b362a3d3_lang = "";
-const _sfc_main$7 = {};
-const _hoisted_1$6 = { class: "item" };
-const _hoisted_2$6 = { class: "details" };
-function _sfc_render$5(_ctx, _cache) {
-  return openBlock(), createElementBlock("div", _hoisted_1$6, [
-    createBaseVNode("i", null, [
-      renderSlot(_ctx.$slots, "icon", {}, void 0, true)
-    ]),
-    createBaseVNode("div", _hoisted_2$6, [
-      createBaseVNode("h3", null, [
-        renderSlot(_ctx.$slots, "heading", {}, void 0, true)
-      ]),
-      renderSlot(_ctx.$slots, "default", {}, void 0, true)
-    ])
-  ]);
-}
-const WelcomeItem = /* @__PURE__ */ _export_sfc(_sfc_main$7, [["render", _sfc_render$5], ["__scopeId", "data-v-b362a3d3"]]);
-const _sfc_main$6 = {};
-const _hoisted_1$5 = {
-  xmlns: "http://www.w3.org/2000/svg",
-  width: "20",
-  height: "17",
-  fill: "currentColor"
-};
-const _hoisted_2$5 = /* @__PURE__ */ createBaseVNode("path", { d: "M11 2.253a1 1 0 1 0-2 0h2zm-2 13a1 1 0 1 0 2 0H9zm.447-12.167a1 1 0 1 0 1.107-1.666L9.447 3.086zM1 2.253L.447 1.42A1 1 0 0 0 0 2.253h1zm0 13H0a1 1 0 0 0 1.553.833L1 15.253zm8.447.833a1 1 0 1 0 1.107-1.666l-1.107 1.666zm0-14.666a1 1 0 1 0 1.107 1.666L9.447 1.42zM19 2.253h1a1 1 0 0 0-.447-.833L19 2.253zm0 13l-.553.833A1 1 0 0 0 20 15.253h-1zm-9.553-.833a1 1 0 1 0 1.107 1.666L9.447 14.42zM9 2.253v13h2v-13H9zm1.553-.833C9.203.523 7.42 0 5.5 0v2c1.572 0 2.961.431 3.947 1.086l1.107-1.666zM5.5 0C3.58 0 1.797.523.447 1.42l1.107 1.666C2.539 2.431 3.928 2 5.5 2V0zM0 2.253v13h2v-13H0zm1.553 13.833C2.539 15.431 3.928 15 5.5 15v-2c-1.92 0-3.703.523-5.053 1.42l1.107 1.666zM5.5 15c1.572 0 2.961.431 3.947 1.086l1.107-1.666C9.203 13.523 7.42 13 5.5 13v2zm5.053-11.914C11.539 2.431 12.928 2 14.5 2V0c-1.92 0-3.703.523-5.053 1.42l1.107 1.666zM14.5 2c1.573 0 2.961.431 3.947 1.086l1.107-1.666C18.203.523 16.421 0 14.5 0v2zm3.5.253v13h2v-13h-2zm1.553 12.167C18.203 13.523 16.421 13 14.5 13v2c1.573 0 2.961.431 3.947 1.086l1.107-1.666zM14.5 13c-1.92 0-3.703.523-5.053 1.42l1.107 1.666C11.539 15.431 12.928 15 14.5 15v-2z" }, null, -1);
-const _hoisted_3$5 = [
-  _hoisted_2$5
-];
-function _sfc_render$4(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$5, _hoisted_3$5);
-}
-const DocumentationIcon = /* @__PURE__ */ _export_sfc(_sfc_main$6, [["render", _sfc_render$4]]);
-const _sfc_main$5 = {};
-const _hoisted_1$4 = {
-  xmlns: "http://www.w3.org/2000/svg",
-  "xmlns:xlink": "http://www.w3.org/1999/xlink",
-  "aria-hidden": "true",
-  role: "img",
-  class: "iconify iconify--mdi",
-  width: "24",
-  height: "24",
-  preserveAspectRatio: "xMidYMid meet",
-  viewBox: "0 0 24 24"
-};
-const _hoisted_2$4 = /* @__PURE__ */ createBaseVNode("path", {
-  d: "M20 18v-4h-3v1h-2v-1H9v1H7v-1H4v4h16M6.33 8l-1.74 4H7v-1h2v1h6v-1h2v1h2.41l-1.74-4H6.33M9 5v1h6V5H9m12.84 7.61c.1.22.16.48.16.8V18c0 .53-.21 1-.6 1.41c-.4.4-.85.59-1.4.59H4c-.55 0-1-.19-1.4-.59C2.21 19 2 18.53 2 18v-4.59c0-.32.06-.58.16-.8L4.5 7.22C4.84 6.41 5.45 6 6.33 6H7V5c0-.55.18-1 .57-1.41C7.96 3.2 8.44 3 9 3h6c.56 0 1.04.2 1.43.59c.39.41.57.86.57 1.41v1h.67c.88 0 1.49.41 1.83 1.22l2.34 5.39z",
-  fill: "currentColor"
-}, null, -1);
-const _hoisted_3$4 = [
-  _hoisted_2$4
-];
-function _sfc_render$3(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$4, _hoisted_3$4);
-}
-const ToolingIcon = /* @__PURE__ */ _export_sfc(_sfc_main$5, [["render", _sfc_render$3]]);
-const _sfc_main$4 = {};
-const _hoisted_1$3 = {
-  xmlns: "http://www.w3.org/2000/svg",
-  width: "18",
-  height: "20",
-  fill: "currentColor"
-};
-const _hoisted_2$3 = /* @__PURE__ */ createBaseVNode("path", { d: "M11.447 8.894a1 1 0 1 0-.894-1.789l.894 1.789zm-2.894-.789a1 1 0 1 0 .894 1.789l-.894-1.789zm0 1.789a1 1 0 1 0 .894-1.789l-.894 1.789zM7.447 7.106a1 1 0 1 0-.894 1.789l.894-1.789zM10 9a1 1 0 1 0-2 0h2zm-2 2.5a1 1 0 1 0 2 0H8zm9.447-5.606a1 1 0 1 0-.894-1.789l.894 1.789zm-2.894-.789a1 1 0 1 0 .894 1.789l-.894-1.789zm2 .789a1 1 0 1 0 .894-1.789l-.894 1.789zm-1.106-2.789a1 1 0 1 0-.894 1.789l.894-1.789zM18 5a1 1 0 1 0-2 0h2zm-2 2.5a1 1 0 1 0 2 0h-2zm-5.447-4.606a1 1 0 1 0 .894-1.789l-.894 1.789zM9 1l.447-.894a1 1 0 0 0-.894 0L9 1zm-2.447.106a1 1 0 1 0 .894 1.789l-.894-1.789zm-6 3a1 1 0 1 0 .894 1.789L.553 4.106zm2.894.789a1 1 0 1 0-.894-1.789l.894 1.789zm-2-.789a1 1 0 1 0-.894 1.789l.894-1.789zm1.106 2.789a1 1 0 1 0 .894-1.789l-.894 1.789zM2 5a1 1 0 1 0-2 0h2zM0 7.5a1 1 0 1 0 2 0H0zm8.553 12.394a1 1 0 1 0 .894-1.789l-.894 1.789zm-1.106-2.789a1 1 0 1 0-.894 1.789l.894-1.789zm1.106 1a1 1 0 1 0 .894 1.789l-.894-1.789zm2.894.789a1 1 0 1 0-.894-1.789l.894 1.789zM8 19a1 1 0 1 0 2 0H8zm2-2.5a1 1 0 1 0-2 0h2zm-7.447.394a1 1 0 1 0 .894-1.789l-.894 1.789zM1 15H0a1 1 0 0 0 .553.894L1 15zm1-2.5a1 1 0 1 0-2 0h2zm12.553 2.606a1 1 0 1 0 .894 1.789l-.894-1.789zM17 15l.447.894A1 1 0 0 0 18 15h-1zm1-2.5a1 1 0 1 0-2 0h2zm-7.447-5.394l-2 1 .894 1.789 2-1-.894-1.789zm-1.106 1l-2-1-.894 1.789 2 1 .894-1.789zM8 9v2.5h2V9H8zm8.553-4.894l-2 1 .894 1.789 2-1-.894-1.789zm.894 0l-2-1-.894 1.789 2 1 .894-1.789zM16 5v2.5h2V5h-2zm-4.553-3.894l-2-1-.894 1.789 2 1 .894-1.789zm-2.894-1l-2 1 .894 1.789 2-1L8.553.106zM1.447 5.894l2-1-.894-1.789-2 1 .894 1.789zm-.894 0l2 1 .894-1.789-2-1-.894 1.789zM0 5v2.5h2V5H0zm9.447 13.106l-2-1-.894 1.789 2 1 .894-1.789zm0 1.789l2-1-.894-1.789-2 1 .894 1.789zM10 19v-2.5H8V19h2zm-6.553-3.894l-2-1-.894 1.789 2 1 .894-1.789zM2 15v-2.5H0V15h2zm13.447 1.894l2-1-.894-1.789-2 1 .894 1.789zM18 15v-2.5h-2V15h2z" }, null, -1);
-const _hoisted_3$3 = [
-  _hoisted_2$3
-];
-function _sfc_render$2(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$3, _hoisted_3$3);
-}
-const EcosystemIcon = /* @__PURE__ */ _export_sfc(_sfc_main$4, [["render", _sfc_render$2]]);
-const _sfc_main$3 = {};
-const _hoisted_1$2 = {
-  xmlns: "http://www.w3.org/2000/svg",
-  width: "20",
-  height: "20",
-  fill: "currentColor"
-};
-const _hoisted_2$2 = /* @__PURE__ */ createBaseVNode("path", { d: "M15 4a1 1 0 1 0 0 2V4zm0 11v-1a1 1 0 0 0-1 1h1zm0 4l-.707.707A1 1 0 0 0 16 19h-1zm-4-4l.707-.707A1 1 0 0 0 11 14v1zm-4.707-1.293a1 1 0 0 0-1.414 1.414l1.414-1.414zm-.707.707l-.707-.707.707.707zM9 11v-1a1 1 0 0 0-.707.293L9 11zm-4 0h1a1 1 0 0 0-1-1v1zm0 4H4a1 1 0 0 0 1.707.707L5 15zm10-9h2V4h-2v2zm2 0a1 1 0 0 1 1 1h2a3 3 0 0 0-3-3v2zm1 1v6h2V7h-2zm0 6a1 1 0 0 1-1 1v2a3 3 0 0 0 3-3h-2zm-1 1h-2v2h2v-2zm-3 1v4h2v-4h-2zm1.707 3.293l-4-4-1.414 1.414 4 4 1.414-1.414zM11 14H7v2h4v-2zm-4 0c-.276 0-.525-.111-.707-.293l-1.414 1.414C5.42 15.663 6.172 16 7 16v-2zm-.707 1.121l3.414-3.414-1.414-1.414-3.414 3.414 1.414 1.414zM9 12h4v-2H9v2zm4 0a3 3 0 0 0 3-3h-2a1 1 0 0 1-1 1v2zm3-3V3h-2v6h2zm0-6a3 3 0 0 0-3-3v2a1 1 0 0 1 1 1h2zm-3-3H3v2h10V0zM3 0a3 3 0 0 0-3 3h2a1 1 0 0 1 1-1V0zM0 3v6h2V3H0zm0 6a3 3 0 0 0 3 3v-2a1 1 0 0 1-1-1H0zm3 3h2v-2H3v2zm1-1v4h2v-4H4zm1.707 4.707l.586-.586-1.414-1.414-.586.586 1.414 1.414z" }, null, -1);
-const _hoisted_3$2 = [
-  _hoisted_2$2
-];
-function _sfc_render$1(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$2, _hoisted_3$2);
-}
-const CommunityIcon = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["render", _sfc_render$1]]);
-const _sfc_main$2 = {};
-const _hoisted_1$1 = {
-  xmlns: "http://www.w3.org/2000/svg",
-  width: "20",
-  height: "20",
-  fill: "currentColor"
-};
-const _hoisted_2$1 = /* @__PURE__ */ createBaseVNode("path", { d: "M10 3.22l-.61-.6a5.5 5.5 0 0 0-7.666.105 5.5 5.5 0 0 0-.114 7.665L10 18.78l8.39-8.4a5.5 5.5 0 0 0-.114-7.665 5.5 5.5 0 0 0-7.666-.105l-.61.61z" }, null, -1);
-const _hoisted_3$1 = [
-  _hoisted_2$1
-];
-function _sfc_render(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$1, _hoisted_3$1);
-}
-const SupportIcon = /* @__PURE__ */ _export_sfc(_sfc_main$2, [["render", _sfc_render]]);
-const _hoisted_1 = /* @__PURE__ */ createBaseVNode("a", {
-  href: "https://vuejs.org/",
-  target: "_blank",
-  rel: "noopener"
-}, "official documentation", -1);
-const _hoisted_2 = /* @__PURE__ */ createBaseVNode("a", {
-  href: "https://vitejs.dev/guide/features.html",
-  target: "_blank",
-  rel: "noopener"
-}, "Vite", -1);
-const _hoisted_3 = /* @__PURE__ */ createBaseVNode("a", {
-  href: "https://code.visualstudio.com/",
-  target: "_blank",
-  rel: "noopener"
-}, "VSCode", -1);
-const _hoisted_4 = /* @__PURE__ */ createBaseVNode("a", {
-  href: "https://github.com/johnsoncodehk/volar",
-  target: "_blank",
-  rel: "noopener"
-}, "Volar", -1);
-const _hoisted_5 = /* @__PURE__ */ createBaseVNode("a", {
-  href: "https://www.cypress.io/",
-  target: "_blank",
-  rel: "noopener"
-}, "Cypress", -1);
-const _hoisted_6 = /* @__PURE__ */ createBaseVNode("a", {
-  href: "https://on.cypress.io/component",
-  target: "_blank"
-}, "Cypress Component Testing", -1);
-const _hoisted_7 = /* @__PURE__ */ createBaseVNode("br", null, null, -1);
-const _hoisted_8 = /* @__PURE__ */ createBaseVNode("code", null, "README.md", -1);
-const _hoisted_9 = /* @__PURE__ */ createBaseVNode("a", {
-  href: "https://pinia.vuejs.org/",
-  target: "_blank",
-  rel: "noopener"
-}, "Pinia", -1);
-const _hoisted_10 = /* @__PURE__ */ createBaseVNode("a", {
-  href: "https://router.vuejs.org/",
-  target: "_blank",
-  rel: "noopener"
-}, "Vue Router", -1);
-const _hoisted_11 = /* @__PURE__ */ createBaseVNode("a", {
-  href: "https://test-utils.vuejs.org/",
-  target: "_blank",
-  rel: "noopener"
-}, "Vue Test Utils", -1);
-const _hoisted_12 = /* @__PURE__ */ createBaseVNode("a", {
-  href: "https://github.com/vuejs/devtools",
-  target: "_blank",
-  rel: "noopener"
-}, "Vue Dev Tools", -1);
-const _hoisted_13 = /* @__PURE__ */ createBaseVNode("a", {
-  href: "https://github.com/vuejs/awesome-vue",
-  target: "_blank",
-  rel: "noopener"
-}, "Awesome Vue", -1);
-const _hoisted_14 = /* @__PURE__ */ createBaseVNode("a", {
-  href: "https://chat.vuejs.org",
-  target: "_blank",
-  rel: "noopener"
-}, "Vue Land", -1);
-const _hoisted_15 = /* @__PURE__ */ createBaseVNode("a", {
-  href: "https://stackoverflow.com/questions/tagged/vue.js",
-  target: "_blank",
-  rel: "noopener"
-}, "StackOverflow", -1);
-const _hoisted_16 = /* @__PURE__ */ createBaseVNode("a", {
-  href: "https://news.vuejs.org",
-  target: "_blank",
-  rel: "noopener"
-}, "our mailing list", -1);
-const _hoisted_17 = /* @__PURE__ */ createBaseVNode("a", {
-  href: "https://twitter.com/vuejs",
-  target: "_blank",
-  rel: "noopener"
-}, "@vuejs", -1);
-const _hoisted_18 = /* @__PURE__ */ createBaseVNode("a", {
-  href: "https://vuejs.org/sponsor/",
-  target: "_blank",
-  rel: "noopener"
-}, "becoming a sponsor", -1);
-const _sfc_main$1 = {
-  __name: "TheWelcome",
-  setup(__props) {
-    return (_ctx, _cache) => {
-      return openBlock(), createElementBlock(Fragment, null, [
-        createVNode(WelcomeItem, null, {
-          icon: withCtx(() => [
-            createVNode(DocumentationIcon)
-          ]),
-          heading: withCtx(() => [
-            createTextVNode("Documentation")
-          ]),
-          default: withCtx(() => [
-            createTextVNode(" Vue’s "),
-            _hoisted_1,
-            createTextVNode(" provides you with all information you need to get started. ")
-          ]),
-          _: 1
-        }),
-        createVNode(WelcomeItem, null, {
-          icon: withCtx(() => [
-            createVNode(ToolingIcon)
-          ]),
-          heading: withCtx(() => [
-            createTextVNode("Tooling")
-          ]),
-          default: withCtx(() => [
-            createTextVNode(" This project is served and bundled with "),
-            _hoisted_2,
-            createTextVNode(". The recommended IDE setup is "),
-            _hoisted_3,
-            createTextVNode(" + "),
-            _hoisted_4,
-            createTextVNode(". If you need to test your components and web pages, check out "),
-            _hoisted_5,
-            createTextVNode(" and "),
-            _hoisted_6,
-            createTextVNode(". "),
-            _hoisted_7,
-            createTextVNode(" More instructions are available in "),
-            _hoisted_8,
-            createTextVNode(". ")
-          ]),
-          _: 1
-        }),
-        createVNode(WelcomeItem, null, {
-          icon: withCtx(() => [
-            createVNode(EcosystemIcon)
-          ]),
-          heading: withCtx(() => [
-            createTextVNode("Ecosystem")
-          ]),
-          default: withCtx(() => [
-            createTextVNode(" Get official tools and libraries for your project: "),
-            _hoisted_9,
-            createTextVNode(", "),
-            _hoisted_10,
-            createTextVNode(", "),
-            _hoisted_11,
-            createTextVNode(", and "),
-            _hoisted_12,
-            createTextVNode(". If you need more resources, we suggest paying "),
-            _hoisted_13,
-            createTextVNode(" a visit. ")
-          ]),
-          _: 1
-        }),
-        createVNode(WelcomeItem, null, {
-          icon: withCtx(() => [
-            createVNode(CommunityIcon)
-          ]),
-          heading: withCtx(() => [
-            createTextVNode("Community")
-          ]),
-          default: withCtx(() => [
-            createTextVNode(" Got stuck? Ask your question on "),
-            _hoisted_14,
-            createTextVNode(", our official Discord server, or "),
-            _hoisted_15,
-            createTextVNode(". You should also subscribe to "),
-            _hoisted_16,
-            createTextVNode(" and follow the official "),
-            _hoisted_17,
-            createTextVNode(" twitter account for latest news in the Vue world. ")
-          ]),
-          _: 1
-        }),
-        createVNode(WelcomeItem, null, {
-          icon: withCtx(() => [
-            createVNode(SupportIcon)
-          ]),
-          heading: withCtx(() => [
-            createTextVNode("Support Vue")
-          ]),
-          default: withCtx(() => [
-            createTextVNode(" As an independent project, Vue relies on community backing for its sustainability. You can help us by "),
-            _hoisted_18,
-            createTextVNode(". ")
-          ]),
-          _: 1
-        })
-      ], 64);
-    };
-  }
-};
-const _sfc_main = {
+const App = /* @__PURE__ */ _export_sfc(_sfc_main$9, [["__scopeId", "data-v-7e62525b"]]);
+const HomeView_vue_vue_type_style_index_0_lang = "";
+const _hoisted_1$2 = /* @__PURE__ */ createBaseVNode("h1", null, "DANCE PARTY", -1);
+const _hoisted_2$2 = ["src"];
+const _hoisted_3$1 = /* @__PURE__ */ createBaseVNode("br", null, null, -1);
+const _hoisted_4 = { class: "flex" };
+const _hoisted_5 = ["src"];
+const _hoisted_6 = ["src"];
+const _hoisted_7 = ["src"];
+const _hoisted_8 = ["src"];
+const _hoisted_9 = ["src"];
+const _hoisted_10 = { class: "vip" };
+const _sfc_main$8 = {
   __name: "HomeView",
   setup(__props) {
+    const imgSrc = ref("cat_dance_1.gif");
+    const imgSrc1 = ref("cat_dance_2.gif");
+    const imgSrc2 = ref("cat_dance_3.gif");
+    const imgSrc3 = ref("vip_rope.png");
+    const imgSrc4 = ref("confetti.png");
+    const show = ref(true);
+    const show2 = ref(true);
     return (_ctx, _cache) => {
-      return openBlock(), createElementBlock("main", null, [
-        createVNode(_sfc_main$1)
+      return openBlock(), createElementBlock(Fragment, null, [
+        _hoisted_1$2,
+        createBaseVNode("img", {
+          src: imgSrc4.value,
+          style: { "height": "200px", "width": "auto" }
+        }, null, 8, _hoisted_2$2),
+        createBaseVNode("main", null, [
+          createVNode(unref(RouterView), {
+            name: "component1",
+            class: "c1"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component2",
+            class: "c2"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component3",
+            class: "c3"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component4",
+            class: "c4"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component5",
+            class: "c5"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c6"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component1",
+            class: "c7"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component2",
+            class: "c8"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component3",
+            class: "c9"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component4",
+            class: "c10"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component5",
+            class: "c11"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c12"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c13"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c14"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c15"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c16"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c17"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c18"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c19"
+          }),
+          createVNode(unref(RouterView), {
+            name: "component6",
+            class: "c20"
+          })
+        ]),
+        _hoisted_3$1,
+        createBaseVNode("div", _hoisted_4, [
+          createBaseVNode("button", {
+            class: "button2",
+            onClick: _cache[0] || (_cache[0] = ($event) => show.value = !show.value)
+          }, "Invite Cats"),
+          createBaseVNode("button", {
+            class: "button2",
+            onClick: _cache[1] || (_cache[1] = ($event) => show2.value = !show2.value)
+          }, "Let's Party")
+        ]),
+        createVNode(Transition, { name: "cats-in" }, {
+          default: withCtx(() => [
+            show.value ? (openBlock(), createElementBlock("img", {
+              key: 0,
+              src: imgSrc.value
+            }, null, 8, _hoisted_5)) : createCommentVNode("", true)
+          ]),
+          _: 1
+        }),
+        createBaseVNode("img", { src: imgSrc1.value }, null, 8, _hoisted_6),
+        createBaseVNode("img", { src: imgSrc1.value }, null, 8, _hoisted_7),
+        createBaseVNode("img", { src: imgSrc2.value }, null, 8, _hoisted_8),
+        createBaseVNode("img", {
+          src: imgSrc3.value,
+          style: { "height": "150px", "width": "200px" }
+        }, null, 8, _hoisted_9),
+        createBaseVNode("div", _hoisted_10, [
+          createVNode(VipNav)
+        ])
+      ], 64);
+    };
+  }
+};
+const Component1_vue_vue_type_style_index_0_lang = "";
+ref("../cat_dance_1.gif");
+const _sfc_main$7 = {};
+function _sfc_render$5(_ctx, _cache, $props, $setup, $data, $options) {
+  return openBlock(), createElementBlock("h1");
+}
+const Component1 = /* @__PURE__ */ _export_sfc(_sfc_main$7, [["render", _sfc_render$5]]);
+const _sfc_main$6 = {};
+function _sfc_render$4(_ctx, _cache) {
+  return openBlock(), createElementBlock("h1");
+}
+const Component2 = /* @__PURE__ */ _export_sfc(_sfc_main$6, [["render", _sfc_render$4]]);
+const _sfc_main$5 = {};
+function _sfc_render$3(_ctx, _cache) {
+  return openBlock(), createElementBlock("h1");
+}
+const Component3 = /* @__PURE__ */ _export_sfc(_sfc_main$5, [["render", _sfc_render$3]]);
+const _sfc_main$4 = {};
+function _sfc_render$2(_ctx, _cache) {
+  return openBlock(), createElementBlock("h1");
+}
+const Component4 = /* @__PURE__ */ _export_sfc(_sfc_main$4, [["render", _sfc_render$2]]);
+const _sfc_main$3 = {};
+function _sfc_render$1(_ctx, _cache) {
+  return openBlock(), createElementBlock("h1");
+}
+const Component5 = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["render", _sfc_render$1]]);
+const _sfc_main$2 = {};
+function _sfc_render(_ctx, _cache) {
+  return openBlock(), createElementBlock("h1");
+}
+const Component6 = /* @__PURE__ */ _export_sfc(_sfc_main$2, [["render", _sfc_render]]);
+const VipView_vue_vue_type_style_index_0_scoped_ea48711a_lang = "";
+const _withScopeId$1 = (n) => (pushScopeId("data-v-ea48711a"), n = n(), popScopeId(), n);
+const _hoisted_1$1 = /* @__PURE__ */ _withScopeId$1(() => /* @__PURE__ */ createBaseVNode("h1", null, " VIP LOUNGE", -1));
+const _hoisted_2$1 = /* @__PURE__ */ _withScopeId$1(() => /* @__PURE__ */ createBaseVNode("hr", null, null, -1));
+const _hoisted_3 = ["src"];
+const _sfc_main$1 = {
+  __name: "VipView",
+  setup(__props) {
+    const imgSrc1 = ref("pizza.png");
+    return (_ctx, _cache) => {
+      const _component_P = resolveComponent("P");
+      return openBlock(), createElementBlock("body", null, [
+        _hoisted_1$1,
+        _hoisted_2$1,
+        createVNode(_component_P, null, {
+          default: withCtx(() => [
+            createTextVNode(" Welcome, Gremlin!")
+          ]),
+          _: 1
+        }),
+        createBaseVNode("img", { src: imgSrc1.value }, null, 8, _hoisted_3)
       ]);
     };
   }
 };
+const VipView = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["__scopeId", "data-v-ea48711a"]]);
+const loggedIn = [
+  {
+    loggedIn: "false"
+  }
+];
+const jsonObject = {
+  loggedIn
+};
+const LoginView_vue_vue_type_style_index_0_scoped_1db37619_lang = "";
+const _withScopeId = (n) => (pushScopeId("data-v-1db37619"), n = n(), popScopeId(), n);
+const _hoisted_1 = /* @__PURE__ */ _withScopeId(() => /* @__PURE__ */ createBaseVNode("h1", null, "HALT!!! Are You Gremlin?", -1));
+const _hoisted_2 = ["src"];
+const _sfc_main = {
+  __name: "LoginView",
+  setup(__props) {
+    const router2 = useRouter();
+    const log = jsonObject.loggedIn;
+    function login() {
+      router2.replace("/vip");
+      log.loggedIn = "true";
+    }
+    function logout() {
+      router2.replace("/");
+    }
+    const imgSrc = ref("grem_4.jpg");
+    return (_ctx, _cache) => {
+      return openBlock(), createElementBlock("body", null, [
+        _hoisted_1,
+        createBaseVNode("img", { src: imgSrc.value }, null, 8, _hoisted_2),
+        createBaseVNode("div", { class: "center" }, [
+          createBaseVNode("button", {
+            onClick: login,
+            class: "button",
+            type: "button"
+          }, "YES"),
+          createBaseVNode("button", {
+            onClick: logout,
+            class: "button",
+            type: "button"
+          }, "NO")
+        ])
+      ]);
+    };
+  }
+};
+const LoginView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-1db37619"]]);
+function stripRoute(to) {
+  if (to.hash)
+    return { path: to.path, query: {}, hash: "" };
+}
 const router = createRouter({
   history: createWebHistory("/app16/"),
   routes: [
     {
       path: "/",
       name: "home",
-      component: _sfc_main
+      components: {
+        component0: _sfc_main$8,
+        component1: Component1,
+        component2: Component2,
+        component3: Component3,
+        component4: Component4,
+        component5: Component5,
+        component6: Component6
+      }
     },
     {
-      path: "/about",
-      name: "about",
-      // route level code-splitting
-      // this generates a separate chunk (About.[hash].js) for this route
-      // which is lazy-loaded when the route is visited.
-      component: () => __vitePreload(() => import("./AboutView-36940d41.js"), true ? ["assets/AboutView-36940d41.js","assets/AboutView-fe0787ef.css"] : void 0)
+      path: "/vip",
+      name: "vip",
+      component: VipView,
+      beforeEnter: [stripRoute],
+      meta: { requiresAuth: true }
+    },
+    {
+      path: "/login",
+      name: "login",
+      component: LoginView
     }
   ]
+});
+router.beforeEach((to, from) => {
+  const log = jsonObject.loggedIn;
+  if (to.meta.requiresAuth && !log.loggedIn) {
+    console.log("redirecting to login view");
+    return {
+      path: "/login",
+      query: { redirect: to.fullPath }
+    };
+  }
 });
 const main = "";
 const app = createApp(App);
 app.use(router);
 app.mount("#app");
-export {
-  _export_sfc as _,
-  createBaseVNode as a,
-  createElementBlock as c,
-  openBlock as o
-};
